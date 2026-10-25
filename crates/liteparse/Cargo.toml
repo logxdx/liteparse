@@ -16,6 +16,9 @@ path = "src/main.rs"
 
 [features]
 default = ["tesseract"]
+indra-ocr = ["dep:ort", "dep:unicode-bidi", "dep:unicode-normalization", "dep:zip"]
+indra-ocr-auto-download = ["indra-ocr", "dep:sha2"]
+indra-ocr-cuda = ["indra-ocr", "ort/cuda"]
 oar-ocr = ["dep:oar-ocr"]
 oar-ocr-auto-download = ["oar-ocr", "oar-ocr/auto-download"]
 oar-ocr-cuda = ["oar-ocr", "oar-ocr/cuda"]
@@ -52,6 +55,14 @@ usvg = "0.44"
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 lopdf = { version = "0.42", default-features = false }
 oar-ocr = { version = "0.8", optional = true }
+# Same version and default features `oar-ocr` pulls in, so builds with both
+# features link a single ONNX Runtime.
+ort = { version = "=2.0.0-rc.12", optional = true }
+# Indra OCR: right-to-left lines, NFC, and the n-gram LM tables (.npz).
+unicode-bidi = { version = "0.3", optional = true }
+unicode-normalization = { version = "0.1", optional = true }
+zip = { version = "2", default-features = false, features = ["deflate"], optional = true }
+sha2 = { version = "0.10", optional = true }
 rmp = "0.8"
 tokio = { version = "1.52.3", features = ["rt-multi-thread", "fs", "process"] }
 
