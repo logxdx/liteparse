@@ -71,9 +71,10 @@ struct ParseCommand {
     #[arg(long)]
     tessdata_path: Option<String>,
 
-    /// OCR engine: "tesseract" (default) or "indra" (in-process Indra OCR;
-    /// needs a build with the `indra-ocr` feature). Ignored with --ocr-server-url.
-    #[arg(long, default_value = "tesseract")]
+    /// OCR engine: "indra" (in-process Indra OCR; the default in builds with
+    /// the `indra-ocr` feature) or "tesseract" (the default otherwise).
+    /// Ignored with --ocr-server-url.
+    #[arg(long, default_value = DEFAULT_OCR_ENGINE)]
     ocr_engine: String,
 
     /// Indra OCR model folder (default: INDRA_OCR_MODEL_DIR, then the
@@ -241,9 +242,10 @@ struct BatchParseCommand {
     #[arg(long)]
     tessdata_path: Option<String>,
 
-    /// OCR engine: "tesseract" (default) or "indra" (in-process Indra OCR;
-    /// needs a build with the `indra-ocr` feature). Ignored with --ocr-server-url.
-    #[arg(long, default_value = "tesseract")]
+    /// OCR engine: "indra" (in-process Indra OCR; the default in builds with
+    /// the `indra-ocr` feature) or "tesseract" (the default otherwise).
+    /// Ignored with --ocr-server-url.
+    #[arg(long, default_value = DEFAULT_OCR_ENGINE)]
     ocr_engine: String,
 
     /// Indra OCR model folder (default: INDRA_OCR_MODEL_DIR, then the
@@ -357,6 +359,13 @@ struct IsComplexCommand {
     #[arg(short, long)]
     quiet: bool,
 }
+
+/// `--ocr-engine` default: Indra when this build has it, else Tesseract.
+const DEFAULT_OCR_ENGINE: &str = if cfg!(feature = "indra-ocr") {
+    "indra"
+} else {
+    "tesseract"
+};
 
 /// Attach the OCR engine named by `--ocr-engine` (Tesseract is LiteParse's
 /// default, so it needs nothing). An HTTP OCR server URL takes precedence, and
@@ -880,8 +889,13 @@ mod tests {
 
     #[test]
     fn extract_text_metadata_flag_is_available_for_parse_and_batch() {
-        let cli = Cli::try_parse_from(["liteparse", "parse", "document.pdf", "--extract-text-metadata"])
-            .unwrap();
+        let cli = Cli::try_parse_from([
+            "liteparse",
+            "parse",
+            "document.pdf",
+            "--extract-text-metadata",
+        ])
+        .unwrap();
         assert!(matches!(
             cli.command,
             Commands::Parse(ParseCommand {
@@ -909,8 +923,13 @@ mod tests {
 
     #[test]
     fn extract_form_fields_flag_is_available_for_parse_and_batch() {
-        let cli =
-            Cli::try_parse_from(["liteparse", "parse", "document.pdf", "--extract-form-fields"]).unwrap();
+        let cli = Cli::try_parse_from([
+            "liteparse",
+            "parse",
+            "document.pdf",
+            "--extract-form-fields",
+        ])
+        .unwrap();
         assert!(matches!(
             cli.command,
             Commands::Parse(ParseCommand {
@@ -938,8 +957,13 @@ mod tests {
 
     #[test]
     fn extract_structure_tree_flag_is_available_for_parse_and_batch() {
-        let cli = Cli::try_parse_from(["liteparse", "parse", "document.pdf", "--extract-structure-tree"])
-            .unwrap();
+        let cli = Cli::try_parse_from([
+            "liteparse",
+            "parse",
+            "document.pdf",
+            "--extract-structure-tree",
+        ])
+        .unwrap();
         assert!(matches!(
             cli.command,
             Commands::Parse(ParseCommand {
