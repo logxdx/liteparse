@@ -1916,7 +1916,7 @@ fn search_items(
         .collect()
 }
 
-/// Run the `lit` CLI with the given arguments.
+/// Run the `liteparse` CLI with the given arguments.
 #[pyfunction]
 fn run_cli(args: Vec<String>) -> PyResult<()> {
     cli::run_cli(args).map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))

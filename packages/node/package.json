@@ -8,7 +8,6 @@
   "types": "./dist/lib.d.ts",
   "sideEffects": false,
   "bin": {
-    "lit": "./dist/cli.js",
     "liteparse": "./dist/cli.js"
   },
   "exports": {

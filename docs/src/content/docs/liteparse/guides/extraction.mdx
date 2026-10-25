@@ -87,7 +87,7 @@ let result = LiteParse::new(config).parse("form.pdf").await?;
 <TabItem label="CLI" value="cli">
 
 ```bash
-lit parse form.pdf --format json \
+liteparse parse form.pdf --format json \
   --extract-images \
   --extract-form-fields \
   --extract-annotations \
@@ -102,7 +102,7 @@ lit parse form.pdf --format json \
 `extract_images` decodes embedded raster images and returns their bytes and metadata in a document-level `images` array. Pair it with `image_output_dir` to write each image to disk instead of holding it in memory.
 
 ```bash
-lit parse report.pdf --format json --extract-images --image-output-dir ./images
+liteparse parse report.pdf --format json --extract-images --image-output-dir ./images
 ```
 
 ```json
@@ -261,7 +261,7 @@ Related: `render_form_fields` draws filled-in field appearances into rendered ra
 `extract_blocks` returns the page decomposed into blocks — headings, paragraphs, list items, tables, code, rules, and figures — each with the region of the page it came from. This is the same classification the Markdown renderer runs on.
 
 ```bash
-lit parse document.pdf --format json --extract-blocks
+liteparse parse document.pdf --format json --extract-blocks
 ```
 
 Only the fields that apply to a block's `kind` are present:

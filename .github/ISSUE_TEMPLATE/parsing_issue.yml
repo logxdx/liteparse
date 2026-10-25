@@ -59,7 +59,7 @@ body:
       label: Command Used
       description: The exact command or code you ran
       render: bash
-      placeholder: "lit parse document.pdf --format json"
+      placeholder: "liteparse parse document.pdf --format json"
     validations:
       required: true
 
@@ -67,7 +67,7 @@ body:
     id: version
     attributes:
       label: LiteParse Version
-      description: Run `lit --version` to get this
+      description: Run `liteparse --version` to get this
       placeholder: "0.1.0"
     validations:
       required: true

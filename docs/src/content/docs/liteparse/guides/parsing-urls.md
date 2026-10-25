@@ -5,19 +5,19 @@ sidebar:
   order: 8
 ---
 
-To parse remote files, LiteParse supports both CLI and library usage for reading bytes and streams. The CLI can download them with any tool you like and pipe the bytes to `lit parse` using `-` as the file argument, while the libraries can fetch the bytes directly and pass them to the parser.
+To parse remote files, LiteParse supports both CLI and library usage for reading bytes and streams. The CLI can download them with any tool you like and pipe the bytes to `liteparse parse` using `-` as the file argument, while the libraries can fetch the bytes directly and pass them to the parser.
 
 ## CLI usage
 
 ```bash
 # Parse a remote PDF
-curl -sL https://example.com/report.pdf | lit parse -
+curl -sL https://example.com/report.pdf | liteparse parse -
 
 # With options
-curl -sL https://example.com/report.pdf | lit parse --no-ocr --format json -
+curl -sL https://example.com/report.pdf | liteparse parse --no-ocr --format json -
 
 # Save to a file
-curl -sL https://example.com/report.pdf | lit parse -o report.txt -
+curl -sL https://example.com/report.pdf | liteparse parse -o report.txt -
 ```
 
 The `-` argument tells LiteParse to read from stdin instead of a file path. Any tool that writes to stdout works — `curl`, `wget`, `aws s3 cp - -`, etc.

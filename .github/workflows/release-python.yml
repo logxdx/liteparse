@@ -265,8 +265,8 @@ jobs:
 
       - name: CLI test
         run: |
-          lit --version
-          lit parse demo/docs/apple-10k-2024.pdf --no-ocr --max-pages 1 -q | head -5
+          liteparse --version
+          liteparse parse demo/docs/apple-10k-2024.pdf --no-ocr --max-pages 1 -q | head -5
           echo "CLI test passed"
 
   build-cli:
@@ -276,18 +276,18 @@ jobs:
         include:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-22.04
-            artifact: lit-linux-x64
+            artifact: liteparse-linux-x64
             use-glibc-container: true
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-22.04-arm
-            artifact: lit-linux-arm64
+            artifact: liteparse-linux-arm64
             use-glibc-container: true
           - target: aarch64-apple-darwin
             os: macos-latest
-            artifact: lit-darwin-arm64
+            artifact: liteparse-darwin-arm64
           - target: x86_64-apple-darwin
             os: macos-26-intel
-            artifact: lit-darwin-x64
+            artifact: liteparse-darwin-x64
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -337,7 +337,7 @@ jobs:
       - name: Package binary
         run: |
           mkdir -p dist
-          cp target/${{ matrix.target }}/release/lit dist/${{ matrix.artifact }}
+          cp target/${{ matrix.target }}/release/liteparse dist/${{ matrix.artifact }}
           chmod +x dist/${{ matrix.artifact }}
           tar -czf dist/${{ matrix.artifact }}.tar.gz -C dist ${{ matrix.artifact }}
 
@@ -371,7 +371,7 @@ jobs:
       - name: Download CLI artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: lit-*
+          pattern: liteparse-*
           path: cli-artifacts
 
       - name: Publish to PyPI

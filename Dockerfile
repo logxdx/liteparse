@@ -25,13 +25,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /build/target/release/lit /usr/local/bin/lit
+COPY --from=builder /build/target/release/liteparse /usr/local/bin/liteparse
 # pdfium shared library
 COPY --from=builder /root/.cache/pdfium-rs/ /usr/local/lib/pdfium-rs/
 
 # Ensure pdfium is discoverable at runtime
 ENV LD_LIBRARY_PATH="/usr/local/lib/pdfium-rs"
 
-RUN ln -s /usr/local/bin/lit /usr/local/bin/liteparse
 
 CMD ["/bin/sh"]

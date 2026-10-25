@@ -79,29 +79,29 @@ jobs:
         include:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-22.04
-            artifact: lit-linux-x64
+            artifact: liteparse-linux-x64
             pdfium-dylib: libpdfium.so
             use-glibc-container: true
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-22.04-arm
-            artifact: lit-linux-arm64
+            artifact: liteparse-linux-arm64
             pdfium-dylib: libpdfium.so
             use-glibc-container: true
           - target: aarch64-apple-darwin
             os: macos-latest
-            artifact: lit-darwin-arm64
+            artifact: liteparse-darwin-arm64
             pdfium-dylib: libpdfium.dylib
           - target: x86_64-apple-darwin
             os: macos-26-intel
-            artifact: lit-darwin-x64
+            artifact: liteparse-darwin-x64
             pdfium-dylib: libpdfium.dylib
           - target: x86_64-pc-windows-msvc
             os: windows-latest
-            artifact: lit-windows-x64
+            artifact: liteparse-windows-x64
             pdfium-dylib: pdfium.dll
           - target: aarch64-pc-windows-msvc
             os: windows-11-arm
-            artifact: lit-windows-arm64
+            artifact: liteparse-windows-arm64
             pdfium-dylib: pdfium.dll
 
     runs-on: ${{ matrix.os }}
@@ -161,8 +161,8 @@ jobs:
         shell: bash
         run: |
           mkdir -p staging/${{ matrix.artifact }}
-          cp target/${{ matrix.target }}/release/lit staging/${{ matrix.artifact }}/lit
-          chmod +x staging/${{ matrix.artifact }}/lit
+          cp target/${{ matrix.target }}/release/liteparse staging/${{ matrix.artifact }}/liteparse
+          chmod +x staging/${{ matrix.artifact }}/liteparse
           bash packages/node/scripts/copy-pdfium.sh staging/${{ matrix.artifact }}
 
       - name: Stage binary and pdfium (Windows)
@@ -170,7 +170,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path "staging/${{ matrix.artifact }}" | Out-Null
-          Copy-Item "target/${{ matrix.target }}/release/lit.exe" -Destination "staging/${{ matrix.artifact }}/lit.exe"
+          Copy-Item "target/${{ matrix.target }}/release/liteparse.exe" -Destination "staging/${{ matrix.artifact }}/liteparse.exe"
           $cacheBase = "$env:LOCALAPPDATA\pdfium-rs"
           if (-not (Test-Path $cacheBase)) {
             $cacheBase = "$env:USERPROFILE\.cache\pdfium-rs"

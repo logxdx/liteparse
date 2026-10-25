@@ -38,7 +38,7 @@ cargo install liteparse
 npm i @llamaindex/liteparse-wasm
 ```
 
-Since the WASM package is designed for browser usage, it does not include the `lit` CLI command. Instead, you can use the exported functions directly from JavaScript to parse documents in the browser environment.
+Since the WASM package is designed for browser usage, it does not include the `liteparse` CLI command. Instead, you can use the exported functions directly from JavaScript to parse documents in the browser environment.
 
 For full browser usage and limitations, see the [WASM package guide](/liteparse/guides/browser-usage/).
 </TabItem>
@@ -50,19 +50,19 @@ Once installed, parse from the command line:
 
 ```bash
 # Parse a PDF and print text to stdout
-lit parse document.pdf
+liteparse parse document.pdf
 
 # Save output to a file
-lit parse document.pdf -o output.txt
+liteparse parse document.pdf -o output.txt
 
 # Get structured JSON with bounding boxes
-lit parse document.pdf --format json -o output.json
+liteparse parse document.pdf --format json -o output.json
 
 # Render to Markdown (headings, tables, lists, images, links)
-lit parse document.pdf --format markdown -o output.md
+liteparse parse document.pdf --format markdown -o output.md
 
 # Parse only specific pages
-lit parse document.pdf --target-pages "1-5,10,15-20"
+liteparse parse document.pdf --target-pages "1-5,10,15-20"
 ```
 
 ### Batch parsing
@@ -70,7 +70,7 @@ lit parse document.pdf --target-pages "1-5,10,15-20"
 Parse an entire directory of documents at once:
 
 ```bash
-lit batch-parse ./pdfs ./outputs
+liteparse batch-parse ./pdfs ./outputs
 ```
 
 ### Screenshots
@@ -78,7 +78,7 @@ lit batch-parse ./pdfs ./outputs
 Generate page images from a PDF for LLM agents or visual workflows:
 
 ```bash
-lit screenshot document.pdf -o ./screenshots
+liteparse screenshot document.pdf -o ./screenshots
 ```
 
 ## Next steps

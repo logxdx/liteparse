@@ -11,7 +11,7 @@ readme = "README.md"
 name = "liteparse"
 
 [[bin]]
-name = "lit"
+name = "liteparse"
 path = "src/main.rs"
 
 [features]

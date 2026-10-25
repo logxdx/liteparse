@@ -1,6 +1,6 @@
 """LiteParse - fast local document parsing."""
 
-# Re-exports are resolved lazily (PEP 562). `lit` runs cli.py, which imports
+# Re-exports are resolved lazily (PEP 562). `liteparse` runs cli.py, which imports
 # liteparse._liteparse and so executes this module; eagerly pulling in .parser
 # and .types dragged asyncio and importlib.metadata into every CLI invocation
 # for ~45ms of startup that a parse never uses.

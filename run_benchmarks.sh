@@ -14,7 +14,7 @@
 #   --competitors-only      Only run the model-free competitors (keep existing LiteParse outputs).
 #   --benches=LIST          Comma-separated subset of: olmocr,opendataloader,parsebench
 #                           (default: all three).
-#   --skip-build            Don't rebuild the lit binary / Python binding.
+#   --skip-build            Don't rebuild the liteparse binary / Python binding.
 #   --out=DIR               Where to write logs + the summary (default: bench_results/latest).
 #   --ocr=MODE              LiteParse OCR mode: none (default), tesseract, or paddle.
 #                           paddle = the HTTP PaddleOCR server (ocr/paddleocr, port 8829;
@@ -91,8 +91,8 @@ run_engines() {  # echoes the engine list for a benchmark, honoring --liteparse-
 # === 1. Build artifacts =======================================================
 if [ "$COMPETITORS_ONLY" = "1" ]; then SKIP_BUILD=1; fi
 if [ "$SKIP_BUILD" = "0" ]; then
-  echo "### Building lit binary + Python binding ..."
-  cargo build --release --bin lit || { echo "cargo build failed"; exit 1; }
+  echo "### Building liteparse binary + Python binding ..."
+  cargo build --release --bin liteparse || { echo "cargo build failed"; exit 1; }
   ( cd packages/python && maturin develop --release ) || { echo "maturin build failed"; exit 1; }
 else
   echo "### Skipping build (--skip-build)"
@@ -121,7 +121,7 @@ if [[ " $BENCHES " == *" opendataloader "* ]]; then
   for E in $(run_engines "$ODL_LP" "$ODL_LP" opendataloader markitdown); do
     echo "  run $E"; stamp "odl_$E start"
     ( cd opendataloader-bench && \
-      LITEPARSE_BIN="$ROOT/target/release/lit" \
+      LITEPARSE_BIN="$ROOT/target/release/liteparse" \
       ../.venv/bin/python src/run.py --engine "$E" --force ) \
         > "$OUT/odl_$E.log" 2>&1
     stamp "odl_$E end"
@@ -134,7 +134,7 @@ if [[ " $BENCHES " == *" parsebench "* ]]; then
   for P in $(run_engines "$PB_LP" "$PB_LP" markitdown opendataloader_markdown pdf_inspector); do
     echo "  run $P"; stamp "parsebench_$P start"
     EXTRA="--force"; [[ "$P" == liteparse* ]] && EXTRA="--force -m $PB_CONC"
-    ( cd ParseBench && LITEPARSE_BIN="$ROOT/target/release/lit" \
+    ( cd ParseBench && LITEPARSE_BIN="$ROOT/target/release/liteparse" \
       ../.venv/bin/parse-bench run "$P" --open_report=False $EXTRA ) \
         > "$OUT/parsebench_$P.log" 2>&1
     stamp "parsebench_$P end"

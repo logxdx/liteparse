@@ -148,7 +148,7 @@ as on the ParseBench leaderboard.
 | markitdown 0.1.7 | 0.185 | 0.158 | **0.020** | 0.652 | 0.001 | 0.110 |
 
 Notes:
-- **Visual Grounding** scores layout blocks with bounding boxes (`lit parse --extract-blocks`).
+- **Visual Grounding** scores layout blocks with bounding boxes (`liteparse parse --extract-blocks`).
 - **Charts** is near zero for every tool here — none reconstruct chart data.
 </details>
 
@@ -204,7 +204,7 @@ Notes:
 
 - **Same scorer for every tool.** Each benchmark's own evaluator, unmodified. The ground truth in
   all three corpora is plain text, so every tool including LiteParse runs with hyperlink syntax
-  off (`--no-links`); everything else is the default `lit parse --format markdown`.
+  off (`--no-links`); everything else is the default `liteparse parse --format markdown`.
 - **OCR modes.** *No OCR* is `--no-ocr`. *Tesseract* is the built-in engine with no setup.
   *PaddleOCR* is the PP-OCRv5 mobile detector and English recognizer served over the
   [OCR HTTP API](OCR_API_SPEC.md) by [`ocr/rapidocr`](ocr/rapidocr), which runs the PaddleOCR
@@ -233,7 +233,7 @@ Results and a `SUMMARY.md` land in `bench_results/latest/`.
 
 ## Installation
 
-Install via your preferred package manager. All versions (except WASM) ship with the same `lit` CLI.
+Install via your preferred package manager. All versions (except WASM) ship with the same `liteparse` CLI.
 
 | Language | Install | Library Docs |
 |----------|---------|--------------|
@@ -262,34 +262,34 @@ The CLI is the same across all installations (`npm`, `pip`, `cargo install`).
 
 ```bash
 # Basic parsing
-lit parse document.pdf
+liteparse parse document.pdf
 
 # Parse to Markdown — headings, tables, lists, images, links
-lit parse document.pdf --format markdown -o output.md
+liteparse parse document.pdf --format markdown -o output.md
 
 # Parse with specific format
-lit parse document.pdf --format json -o output.json
+liteparse parse document.pdf --format json -o output.json
 
 # Parse specific pages
-lit parse document.pdf --target-pages "1-5,10,15-20"
+liteparse parse document.pdf --target-pages "1-5,10,15-20"
 
 # Parse without OCR
-lit parse document.pdf --no-ocr
+liteparse parse document.pdf --no-ocr
 
 # Include page-scoped vector path data in JSON
-lit parse document.pdf --format json --extract-vector-graphics
+liteparse parse document.pdf --format json --extract-vector-graphics
 
 # Include rich per-item PDF text metadata
-lit parse document.pdf --format json --extract-text-metadata
+liteparse parse document.pdf --format json --extract-text-metadata
 
 # Include page annotations in structured JSON
-lit parse document.pdf --format json --extract-annotations
+liteparse parse document.pdf --format json --extract-annotations
 
 # Include AcroForm widget fields and values (repairs orphaned widgets in memory)
-lit parse document.pdf --format json --extract-form-fields
+liteparse parse document.pdf --format json --extract-form-fields
 
 # Parse a remote PDF
-curl -sL https://example.com/report.pdf | lit parse -
+curl -sL https://example.com/report.pdf | liteparse parse -
 ```
 
 ### Markdown Output
@@ -301,25 +301,25 @@ so complex documents may not render perfectly, but it will be fast.
 
 ```bash
 # Render to Markdown
-lit parse document.pdf --format markdown -o output.md
+liteparse parse document.pdf --format markdown -o output.md
 
 # Strip images instead of emitting placeholders
-lit parse document.pdf --format markdown --image-mode off
+liteparse parse document.pdf --format markdown --image-mode off
 
 # Extract embedded images to disk and reference them from the markdown
-lit parse document.pdf --format markdown --image-mode embed --extract-images --image-output-dir ./images
+liteparse parse document.pdf --format markdown --image-mode embed --extract-images --image-output-dir ./images
 
 # Extract image bytes and metadata without changing Markdown image handling
-lit parse document.pdf --format json --extract-images
+liteparse parse document.pdf --format json --extract-images
 
 # Emit link text as plain text (no [text](url) syntax)
-lit parse document.pdf --format markdown --no-links
+liteparse parse document.pdf --format markdown --no-links
 
 # Include tagged-PDF logical structure in JSON
-lit parse document.pdf --format json --extract-structure-tree
+liteparse parse document.pdf --format json --extract-structure-tree
 
 # Include the classified layout blocks (with bounding boxes) in JSON
-lit parse document.pdf --format json --extract-blocks
+liteparse parse document.pdf --format json --extract-blocks
 ```
 
 Image handling is controlled by `--image-mode`:
@@ -457,13 +457,13 @@ documents to different pipelines, rejecting ones you can't handle, or estimating
 
 ```bash
 # Print the complexity verdict and per-page JSON
-lit is-complex document.pdf
+liteparse is-complex document.pdf
 
 # Use as a shell predicate — only parse with --no-ocr when the document is simple
-lit is-complex document.pdf --quiet && lit parse document.pdf --no-ocr
+liteparse is-complex document.pdf --quiet && liteparse parse document.pdf --no-ocr
 
 # List the pages that need OCR
-lit is-complex document.pdf --compact | jq '[.[] | select(.needs_ocr) | .page_number]'
+liteparse is-complex document.pdf --compact | jq '[.[] | select(.needs_ocr) | .page_number]'
 ```
 
 It always prints per-page JSON to **stdout**, a human-readable verdict to **stderr**, and
@@ -476,7 +476,7 @@ list of `reasons` (`scanned`, `no-text`, `sparse-text`, `embedded-images`, `garb
 Parse an entire directory of documents:
 
 ```bash
-lit batch-parse ./input-directory ./output-directory
+liteparse batch-parse ./input-directory ./output-directory
 ```
 
 ### Generate Screenshots
@@ -485,13 +485,13 @@ Screenshots are essential for LLM agents to extract visual information that text
 
 ```bash
 # Screenshot all pages
-lit screenshot document.pdf -o ./screenshots
+liteparse screenshot document.pdf -o ./screenshots
 
 # Screenshot specific pages
-lit screenshot document.pdf --target-pages "1,3,5" -o ./screenshots
+liteparse screenshot document.pdf --target-pages "1,3,5" -o ./screenshots
 
 # Custom DPI
-lit screenshot document.pdf --dpi 300 -o ./screenshots
+liteparse screenshot document.pdf --dpi 300 -o ./screenshots
 ```
 
 ### CLI Reference
@@ -499,7 +499,7 @@ lit screenshot document.pdf --dpi 300 -o ./screenshots
 #### Parse Command
 
 ```
-lit parse [OPTIONS] <file>
+liteparse parse [OPTIONS] <file>
 
 Options:
   -o, --output <file>          Output file path
@@ -530,7 +530,7 @@ Options:
 #### Batch Parse Command
 
 ```
-lit batch-parse [OPTIONS] <input-dir> <output-dir>
+liteparse batch-parse [OPTIONS] <input-dir> <output-dir>
 
 Options:
       --format <format>        Output format: json|text|markdown [default: text]
@@ -551,7 +551,7 @@ Options:
 #### Screenshot Command
 
 ```
-lit screenshot [OPTIONS] <file>
+liteparse screenshot [OPTIONS] <file>
 
 Options:
   -o, --output-dir <dir>       Output directory [default: ./screenshots]
@@ -565,7 +565,7 @@ Options:
 #### Is-Complex Command
 
 ```
-lit is-complex [OPTIONS] <file>
+liteparse is-complex [OPTIONS] <file>
 
 Options:
       --compact                Emit dense, whitespace-free JSON instead of pretty-printed
@@ -586,22 +586,22 @@ when any page needs OCR, so it composes as a shell predicate.
 Tesseract is bundled and works out of the box:
 
 ```bash
-lit parse document.pdf                    # OCR enabled by default
-lit parse document.pdf --ocr-language fra # Specify language
-lit parse document.pdf --no-ocr           # Disable OCR
+liteparse parse document.pdf                    # OCR enabled by default
+liteparse parse document.pdf --ocr-language fra # Specify language
+liteparse parse document.pdf --no-ocr           # Disable OCR
 ```
 
 For offline or air-gapped environments, set `TESSDATA_PREFIX` to a directory containing pre-downloaded `.traineddata` files:
 
 ```bash
 export TESSDATA_PREFIX=/path/to/tessdata
-lit parse document.pdf --ocr-language eng
+liteparse parse document.pdf --ocr-language eng
 ```
 
 Or pass the path directly:
 
 ```bash
-lit parse document.pdf --tessdata-path /path/to/tessdata
+liteparse parse document.pdf --tessdata-path /path/to/tessdata
 ```
 
 ### Optional: HTTP OCR Servers

@@ -311,8 +311,8 @@ jobs:
       - name: CLI test
         if: ${{ !matrix.use-container }}
         run: |
-          lit --version
-          lit parse demo/docs/apple-10k-2024.pdf --no-ocr --max-pages 1 -q | head -5
+          liteparse --version
+          liteparse parse demo/docs/apple-10k-2024.pdf --no-ocr --max-pages 1 -q | head -5
           echo "CLI test passed"
 
       - name: Test in musl container
@@ -339,7 +339,7 @@ jobs:
           print(f\"Parsed {result.num_pages} pages, {len(result.text)} chars\")
           print(\"Parse test passed\")
           "
-              lit --version
-              lit parse demo/docs/apple-10k-2024.pdf --no-ocr --max-pages 1 -q | head -5
+              liteparse --version
+              liteparse parse demo/docs/apple-10k-2024.pdf --no-ocr --max-pages 1 -q | head -5
               echo "CLI test passed"
             '

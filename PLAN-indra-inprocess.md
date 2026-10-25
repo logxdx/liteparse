@@ -5,7 +5,7 @@ All phases implemented (2026-10-25). The sections below the status are the origi
 
 ## Status (2026-10-25)
 
-Open questions answered with the plan's defaults, except scope: all phases were done on request. Rust API only (no `lit` flag), private branch, the 20-page corpus plus a stress set.
+Open questions answered with the plan's defaults, except scope: all phases were done on request. Rust API only (no `liteparse` flag), private branch, the 20-page corpus plus a stress set.
 
 - **Phase 0.** `ort =2.0.0-rc.12`, default features (same as `oar-ocr`): with `indra-ocr` and `oar-ocr` both on there is one `ort`/`ort-sys`. Signatures as in the table below (rec emits T = W/4 steps). Grayscale contract: `render_pages_for_ocr` gives tightly packed 1 byte/px luma; the engine prefers it and also accepts RGB.
 - **Phase 1.** Detection, crops (dark lines, 3x window), width batches, greedy CTC, `MIN_CONF`.
@@ -53,7 +53,7 @@ Through LiteParse at 150 dpi (scanned PDFs, Tesseract with `eng` as LiteParse de
 ### Not covered / left open
 
 - Not measured on real scans, photos, handwriting, forms or mixed-script pages (the stress set is synthetic from one born-digital document).
-- CLI: `lit parse` / `batch-parse` take `--ocr-engine indra` and `--indra-model-dir` (build with `--features indra-ocr` or `indra-ocr-auto-download`). No Node/Python/WASM exposure.
+- CLI: `liteparse parse` / `batch-parse` take `--ocr-engine indra` and `--indra-model-dir` (build with `--features indra-ocr` or `indra-ocr-auto-download`). No Node/Python/WASM exposure.
 - Math (`--math` models), picture regions and Indra's reading order/layout are not ported (LiteParse has its own layout).
 - `tests/indra_parity.rs` thresholds are loose (95% lines, F1 0.998); the measured parity is exact on the corpus.
 
@@ -85,7 +85,7 @@ ONNX signatures (verified with onnxruntime): det `x [1,1,H,W] -> out [1,3,h,w]` 
 
 `prefers_grayscale()` exists, so Indra can ask for a single-channel buffer. Verify the exact buffer layout in `render_pages_for_ocr` before relying on it. Default render DPI is 150 (`DEFAULT_DPI`); Indra's own CLI renders at 200 (see experiments).
 
-`oar.rs` is the template: feature-gated module, `Mutex` around the runtime, `OcrOptions::language` ignored with a one-time warning, an `rgb_image` validator, `from_models`/`from_builder`/`from_runtime` constructors, auto-download behind a second feature, README section. It is **Rust-API only**: not wired into `lit`, napi, python or wasm.
+`oar.rs` is the template: feature-gated module, `Mutex` around the runtime, `OcrOptions::language` ignored with a one-time warning, an `rgb_image` validator, `from_models`/`from_builder`/`from_runtime` constructors, auto-download behind a second feature, README section. It is **Rust-API only**: not wired into `liteparse`, napi, python or wasm.
 
 ## Design
 
@@ -129,7 +129,7 @@ Decisions:
 - End-to-end on scanned PDFs through `Liteparse::with_ocr_engine`, compared with the Tesseract and HTTP-Indra paths on the same pages (F1 against ground truth, time per page, RSS).
 - Decide DPI (150 default vs 200) and whether to render grayscale; set a recommended OCR DPI for the engine.
 - Word-level boxes: split lines at space tokens or wide CTC gaps (`split_line`, gaps 3.0 / 1.8 / 1.6 line heights; needs the per-token x positions `ix0 + (t+0.5)*stride*f`), so liteparse's overlap filter and projection get word-sized boxes like Tesseract's. Keep line-level as a switch and measure which gives better liteparse output.
-- README section modeled on the `oar-ocr` one; `lit` CLI flag (`--indra-model-dir`) if upstream wants it, otherwise Rust API only like oar.
+- README section modeled on the `oar-ocr` one; `liteparse` CLI flag (`--indra-model-dir`) if upstream wants it, otherwise Rust API only like oar.
 - Exit: documented numbers; clean `cargo fmt` and `clippy`.
 
 ### Phase 3: rotated and tilted scans
@@ -174,5 +174,5 @@ Reference scripts (Python, not part of the build): `plan-refs/indra_run.py` (ocr
 1. **Scope**: is Phase 1 + 2 (upright pages, line or word boxes) enough for v1, or are rotated scans (Phase 3) required from the start? Do you need non-Latin scripts (Phase 4)?
 2. **Destination**: private fork/branch for your own use, or something to propose upstream? (Your notes say nothing is pushed and no fork exists yet.)
 3. **GPU**: do you want the CUDA path at all, given the 6 GB card is shared with the agent models? CPU-only keeps Phases 0-3 simple.
-4. **Surface**: Rust API only (like `oar.rs`), or also a `lit` CLI flag?
+4. **Surface**: Rust API only (like `oar.rs`), or also a `liteparse` CLI flag?
 5. **Test data**: is the 20-page ocr-bench corpus enough for parity, or can you point me at scanned/rotated/handwritten pages to add?

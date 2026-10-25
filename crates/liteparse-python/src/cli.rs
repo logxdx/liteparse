@@ -7,7 +7,7 @@ use liteparse::types::PdfInput;
 
 #[derive(Parser, Debug)]
 #[command(
-    name = "lit",
+    name = "liteparse",
     version,
     about = "OSS document parsing tool (supports PDF, DOCX, XLSX, images, and more)"
 )]
@@ -253,7 +253,7 @@ fn parse_image_mode(s: &str) -> Result<ImageMode, String> {
 }
 
 /// Read all bytes from stdin, used when the input path is `-` (e.g. a piped
-/// document: `curl -sL … | lit parse -`).
+/// document: `curl -sL … | liteparse parse -`).
 fn read_stdin_bytes() -> Result<Vec<u8>, std::io::Error> {
     use std::io::Read;
     let mut bytes = Vec::new();
@@ -261,7 +261,7 @@ fn read_stdin_bytes() -> Result<Vec<u8>, std::io::Error> {
     if bytes.is_empty() {
         return Err(std::io::Error::new(
             std::io::ErrorKind::UnexpectedEof,
-            "no data on stdin (input `-` expects a document piped in, e.g. `curl … | lit parse -`)",
+            "no data on stdin (input `-` expects a document piped in, e.g. `curl … | liteparse parse -`)",
         ));
     }
     Ok(bytes)
@@ -622,7 +622,7 @@ mod tests {
 
     #[test]
     fn extract_text_metadata_flag_is_available_for_parse_and_batch() {
-        let cli = Cli::try_parse_from(["lit", "parse", "document.pdf", "--extract-text-metadata"])
+        let cli = Cli::try_parse_from(["liteparse", "parse", "document.pdf", "--extract-text-metadata"])
             .unwrap();
         assert!(matches!(
             cli.command,
@@ -633,7 +633,7 @@ mod tests {
         ));
 
         let cli = Cli::try_parse_from([
-            "lit",
+            "liteparse",
             "batch-parse",
             "input",
             "output",

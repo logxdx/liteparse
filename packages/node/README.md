@@ -8,7 +8,7 @@ Node.js/TypeScript bindings for [LiteParse](https://github.com/run-llama/litepar
 npm i @llamaindex/liteparse
 ```
 
-This also installs the `lit` CLI command (use `npm i -g` for global access).
+This also installs the `liteparse` CLI command (use `npm i -g` for global access).
 
 ## Quick Start
 
@@ -238,14 +238,14 @@ for (const page of pages.filter((p) => p.needsOcr)) {
 
 ## CLI
 
-The npm package includes the `lit` CLI:
+The npm package includes the `liteparse` CLI:
 
 ```bash
-lit parse document.pdf
-lit parse document.pdf --format json -o output.json
-lit parse document.pdf --format json --extract-annotations
-lit parse document.pdf --format json --extract-form-fields
-lit screenshot document.pdf -o ./screenshots
-lit batch-parse ./input ./output
-lit is-complex document.pdf
+liteparse parse document.pdf
+liteparse parse document.pdf --format json -o output.json
+liteparse parse document.pdf --format json --extract-annotations
+liteparse parse document.pdf --format json --extract-form-fields
+liteparse screenshot document.pdf -o ./screenshots
+liteparse batch-parse ./input ./output
+liteparse is-complex document.pdf
 ```

@@ -80,8 +80,8 @@ jobs:
       - name: CLI smoke test
         if: runner.os != 'Windows'
         run: |
-          ./target/debug/lit --version
-          ./target/debug/lit parse demo/docs/apple-10k-2024.pdf --no-ocr --max-pages 1 -q | head -5
+          ./target/debug/liteparse --version
+          ./target/debug/liteparse parse demo/docs/apple-10k-2024.pdf --no-ocr --max-pages 1 -q | head -5
 
       - name: OCR smoke test (runtime tessdata download)
         shell: bash
@@ -93,7 +93,7 @@ jobs:
                  "$HOME/.tesseract-rs" \
                  "${APPDATA:-}/tesseract-rs" 2>/dev/null || true
 
-          LIT=./target/debug/lit
+          LIT=./target/debug/liteparse
           [ -f "$LIT.exe" ] && LIT="$LIT.exe"
           "$LIT" parse demo/docs/long_tiny_text.pdf --max-pages 1 -q -o ocr-out.txt
 

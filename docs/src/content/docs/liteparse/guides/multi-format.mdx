@@ -49,19 +49,19 @@ choco install libreoffice-fresh
 
 ## Usage
 
-Once the dependencies are installed, just pass any supported file to `lit parse`:
+Once the dependencies are installed, just pass any supported file to `liteparse parse`:
 
 ```bash
-lit parse report.docx
-lit parse slides.pptx --format json
-lit parse spreadsheet.xlsx -o output.txt
-lit parse scan.png
+liteparse parse report.docx
+liteparse parse slides.pptx --format json
+liteparse parse spreadsheet.xlsx -o output.txt
+liteparse parse scan.png
 ```
 
 Batch mode also handles mixed formats:
 
 ```bash
-lit batch-parse ./documents ./output --recursive
+liteparse batch-parse ./documents ./output --recursive
 ```
 
 ## How it works
