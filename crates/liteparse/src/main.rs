@@ -71,6 +71,16 @@ struct ParseCommand {
     #[arg(long)]
     tessdata_path: Option<String>,
 
+    /// OCR engine: "tesseract" (default) or "indra" (in-process Indra OCR;
+    /// needs a build with the `indra-ocr` feature). Ignored with --ocr-server-url.
+    #[arg(long, default_value = "tesseract")]
+    ocr_engine: String,
+
+    /// Indra OCR model folder (default: INDRA_OCR_MODEL_DIR, then the
+    /// auto-download cache when built with `indra-ocr-auto-download`)
+    #[arg(long)]
+    indra_model_dir: Option<String>,
+
     /// Max pages to parse
     #[arg(long, default_value = "1000")]
     max_pages: usize,
@@ -231,6 +241,16 @@ struct BatchParseCommand {
     #[arg(long)]
     tessdata_path: Option<String>,
 
+    /// OCR engine: "tesseract" (default) or "indra" (in-process Indra OCR;
+    /// needs a build with the `indra-ocr` feature). Ignored with --ocr-server-url.
+    #[arg(long, default_value = "tesseract")]
+    ocr_engine: String,
+
+    /// Indra OCR model folder (default: INDRA_OCR_MODEL_DIR, then the
+    /// auto-download cache when built with `indra-ocr-auto-download`)
+    #[arg(long)]
+    indra_model_dir: Option<String>,
+
     /// Max pages to parse per file
     #[arg(long, default_value = "1000")]
     max_pages: usize,
@@ -336,6 +356,61 @@ struct IsComplexCommand {
     /// Suppress progress output
     #[arg(short, long)]
     quiet: bool,
+}
+
+/// Attach the OCR engine named by `--ocr-engine` (Tesseract is LiteParse's
+/// default, so it needs nothing). An HTTP OCR server URL takes precedence, and
+/// with OCR off no engine is loaded.
+async fn with_engine(
+    lp: LiteParse,
+    engine: &str,
+    indra_model_dir: Option<&str>,
+) -> Result<LiteParse, Box<dyn std::error::Error>> {
+    match engine {
+        "tesseract" => Ok(lp),
+        "indra" if lp.config().ocr_server_url.is_some() || !lp.config().ocr_enabled => Ok(lp),
+        "indra" => Ok(lp.with_ocr_engine(indra_engine(indra_model_dir).await?)),
+        other => {
+            Err(format!("unknown --ocr-engine {other:?} (expected tesseract or indra)").into())
+        }
+    }
+}
+
+#[cfg(feature = "indra-ocr")]
+async fn indra_engine(
+    model_dir: Option<&str>,
+) -> Result<std::sync::Arc<dyn liteparse::ocr::OcrEngine>, Box<dyn std::error::Error>> {
+    use liteparse::ocr::indra::models::{MODEL_DIR_ENV, ModelFiles};
+    use liteparse::ocr::indra::{IndraOcrEngine, IndraOptions};
+
+    let dir = model_dir
+        .map(std::path::PathBuf::from)
+        .or_else(|| std::env::var_os(MODEL_DIR_ENV).map(std::path::PathBuf::from));
+    let files = match dir {
+        Some(dir) => ModelFiles::in_dir(&dir)?,
+        #[cfg(feature = "indra-ocr-auto-download")]
+        None => {
+            use liteparse::ocr::indra::download::{ModelSet, ensure_models};
+            ensure_models(ModelSet::Full, None).await?
+        }
+        #[cfg(not(feature = "indra-ocr-auto-download"))]
+        None => {
+            return Err(
+                format!("--ocr-engine indra needs --indra-model-dir or {MODEL_DIR_ENV}").into(),
+            );
+        }
+    };
+    let engine =
+        tokio::task::spawn_blocking(move || IndraOcrEngine::new(&files, IndraOptions::default()))
+            .await??;
+    Ok(std::sync::Arc::new(engine))
+}
+
+#[cfg(not(feature = "indra-ocr"))]
+async fn indra_engine(
+    _model_dir: Option<&str>,
+) -> Result<std::sync::Arc<dyn liteparse::ocr::OcrEngine>, Box<dyn std::error::Error>> {
+    Err("this lit was built without the `indra-ocr` feature".into())
 }
 
 fn parse_output_format(s: &str) -> Result<OutputFormat, String> {
@@ -452,7 +527,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 config.num_workers = n;
             }
 
-            let lp = LiteParse::new(config);
+            let lp = with_engine(
+                LiteParse::new(config),
+                &cmd.ocr_engine,
+                cmd.indra_model_dir.as_deref(),
+            )
+            .await?;
             let result = if cmd.file == "-" {
                 lp.parse_input(PdfInput::Bytes(read_stdin_bytes()?)).await?
             } else {
@@ -554,7 +634,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 config.num_workers = n;
             }
 
-            let lp = LiteParse::new(config);
+            let lp = with_engine(
+                LiteParse::new(config),
+                &cmd.ocr_engine,
+                cmd.indra_model_dir.as_deref(),
+            )
+            .await?;
             let out_ext = match format {
                 OutputFormat::Json => "json",
                 OutputFormat::Markdown => "md",
