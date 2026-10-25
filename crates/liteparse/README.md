@@ -227,12 +227,64 @@ concurrently scheduled pages.
 dictionary define the supported languages, and a configured `ocr_language`
 triggers a one-time warning to make that explicit.
 
+### Indra OCR (in-process)
+
+The `indra-ocr` feature runs [Indra OCR](https://github.com/datalab-to/indra)
+inside the process, on ONNX Runtime, as an alternative to the Indra HTTP server
+in `ocr/indraocr`. It ports Indra's whole page pipeline: skew search and
+orientation (pages turned by a quarter turn or tilted up to 45 degrees are read
+upright), line detection, script routing to the base, CJK, right-to-left and
+world recognizers, a language-model re-read of unsure lines, and line splitting
+at column gutters. Reading order and layout stay LiteParse's own. Results are
+line boxes (or word boxes with `IndraOptions::word_boxes`); on a turned or
+straightened page each carries a 4-point polygon, so LiteParse sees the text's
+orientation.
+
+```rust,no_run
+use liteparse::ocr::indra::IndraOcrEngine;
+use liteparse::{LiteParse, LiteParseConfig};
+use std::sync::Arc;
+
+// A folder with det.onnx, rec.onnx and meta.json (plus, optionally,
+// orient.onnx, script.onnx, rec_<group>.onnx and lm*.npz), e.g. a download
+// of the Hugging Face repo datalab-to/indra-ocr at tag v1.1.0.
+let engine = IndraOcrEngine::from_dir("models/indra-ocr")?;
+let parser = LiteParse::new(LiteParseConfig {
+    ocr_enabled: true,
+    ..LiteParseConfig::default()
+})
+.with_ocr_engine(Arc::new(engine));
+# Ok::<(), Box<dyn std::error::Error>>(())
+```
+
+`IndraOcrEngine::from_env` reads the folder from `INDRA_OCR_MODEL_DIR`;
+`IndraOcrEngine::new` takes `IndraOptions` (orientation, script routing,
+language model, word boxes, ONNX Runtime threads, execution provider). Optional
+model files that are missing switch their step off.
+
+With `indra-ocr-auto-download`, `IndraOcrEngine::download(ModelSet::Full, options)`
+fetches the models from the pinned revision, verifies their SHA-256 digests and
+caches them under `$INDRA_OCR_HOME` (default
+`~/.cache/liteparse/indra-ocr/<commit>`). `ModelSet::Base` (about 6 MB) covers
+Latin, Greek, Cyrillic, Devanagari and Bengali; `ModelSet::Full` (about 73 MB)
+adds Chinese, Japanese, Korean, Arabic, Hebrew and other scripts, and the
+language models.
+
+The weights are not Apache-2.0: they are under a modified OpenRAIL-M license
+(free for research, personal use and startups under $20M in funding or
+revenue; not for use competing with Datalab's API). They are never bundled, and
+a download prints the terms once. `OcrOptions::language` is not interpreted: the
+script classifier picks the recognizer per line.
+
 ## Features
 
 - **`tesseract`** (default) — Built-in Tesseract OCR via `tesseract-rs`. Disable with `default-features = false` if you don't need OCR or want to use an HTTP OCR server instead.
 - **`oar-ocr`** — Optional native ONNX backend via `oar-ocr`. Local or in-memory models; non-WASM Rust API only.
 - **`oar-ocr-auto-download`** — Enables SHA-256-verified download and caching of registered model file names through `oar-ocr`.
 - **`oar-ocr-cuda`**, **`oar-ocr-tensorrt`**, **`oar-ocr-directml`**, **`oar-ocr-coreml`**, **`oar-ocr-webgpu`**, **`oar-ocr-openvino`** — Forward the selected ONNX Runtime execution provider to `oar-ocr`.
+- **`indra-ocr`** — In-process Indra OCR engine (`liteparse::ocr::indra`) on ONNX Runtime; models from a local folder; non-WASM Rust API only. Shares the `ort` version with `oar-ocr`, so both features link one ONNX Runtime.
+- **`indra-ocr-auto-download`** — `IndraOcrEngine::download`: SHA-256-verified download and caching of the Indra models at a pinned revision.
+- **`indra-ocr-cuda`** — CUDA execution provider for Indra (`Execution::Cuda`); needs CUDA and cuDNN 9 at run time. Recognizer batches then use fixed width buckets and power-of-two rows.
 
 The Node.js, Python, and WASM bindings build LiteParse with default features
 disabled and do not expose these OAR features, so their published binaries do
