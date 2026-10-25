@@ -103,7 +103,7 @@ INDRA_WORKERS=8 INDRA_THREADS=1 uv run server.py
 ## Use with LiteParse
 
 ```bash
-lit parse document.pdf --ocr-server-url http://localhost:8831/ocr
+liteparse parse document.pdf --ocr-server-url http://localhost:8831/ocr
 ```
 
 Or in code:

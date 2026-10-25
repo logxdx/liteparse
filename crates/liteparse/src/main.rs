@@ -10,7 +10,7 @@ use liteparse::types::PdfInput;
 
 #[derive(Parser, Debug)]
 #[command(
-    name = "lit",
+    name = "liteparse",
     version,
     about = "OSS document parsing tool (supports PDF, DOCX, XLSX, images, and more)"
 )]
@@ -410,7 +410,7 @@ async fn indra_engine(
 async fn indra_engine(
     _model_dir: Option<&str>,
 ) -> Result<std::sync::Arc<dyn liteparse::ocr::OcrEngine>, Box<dyn std::error::Error>> {
-    Err("this lit was built without the `indra-ocr` feature".into())
+    Err("this liteparse was built without the `indra-ocr` feature".into())
 }
 
 fn parse_output_format(s: &str) -> Result<OutputFormat, String> {
@@ -427,7 +427,7 @@ fn parse_output_format(s: &str) -> Result<OutputFormat, String> {
 
 /// Parse a `Name: Value` header string into a `(name, value)` pair.
 /// Read all bytes from stdin, used when the input path is `-` (e.g. a piped
-/// document: `curl -sL … | lit parse -`). Errors carry a hint so a common
+/// document: `curl -sL … | liteparse parse -`). Errors carry a hint so a common
 /// mistake — passing `-` with nothing piped — is diagnosable.
 fn read_stdin_bytes() -> Result<Vec<u8>, std::io::Error> {
     use std::io::Read;
@@ -436,7 +436,7 @@ fn read_stdin_bytes() -> Result<Vec<u8>, std::io::Error> {
     if bytes.is_empty() {
         return Err(std::io::Error::new(
             std::io::ErrorKind::UnexpectedEof,
-            "no data on stdin (input `-` expects a document piped in, e.g. `curl … | lit parse -`)",
+            "no data on stdin (input `-` expects a document piped in, e.g. `curl … | liteparse parse -`)",
         ));
     }
     Ok(bytes)
@@ -880,7 +880,7 @@ mod tests {
 
     #[test]
     fn extract_text_metadata_flag_is_available_for_parse_and_batch() {
-        let cli = Cli::try_parse_from(["lit", "parse", "document.pdf", "--extract-text-metadata"])
+        let cli = Cli::try_parse_from(["liteparse", "parse", "document.pdf", "--extract-text-metadata"])
             .unwrap();
         assert!(matches!(
             cli.command,
@@ -891,7 +891,7 @@ mod tests {
         ));
 
         let cli = Cli::try_parse_from([
-            "lit",
+            "liteparse",
             "batch-parse",
             "input",
             "output",
@@ -910,7 +910,7 @@ mod tests {
     #[test]
     fn extract_form_fields_flag_is_available_for_parse_and_batch() {
         let cli =
-            Cli::try_parse_from(["lit", "parse", "document.pdf", "--extract-form-fields"]).unwrap();
+            Cli::try_parse_from(["liteparse", "parse", "document.pdf", "--extract-form-fields"]).unwrap();
         assert!(matches!(
             cli.command,
             Commands::Parse(ParseCommand {
@@ -920,7 +920,7 @@ mod tests {
         ));
 
         let cli = Cli::try_parse_from([
-            "lit",
+            "liteparse",
             "batch-parse",
             "input",
             "output",
@@ -938,7 +938,7 @@ mod tests {
 
     #[test]
     fn extract_structure_tree_flag_is_available_for_parse_and_batch() {
-        let cli = Cli::try_parse_from(["lit", "parse", "document.pdf", "--extract-structure-tree"])
+        let cli = Cli::try_parse_from(["liteparse", "parse", "document.pdf", "--extract-structure-tree"])
             .unwrap();
         assert!(matches!(
             cli.command,
@@ -949,7 +949,7 @@ mod tests {
         ));
 
         let cli = Cli::try_parse_from([
-            "lit",
+            "liteparse",
             "batch-parse",
             "input",
             "output",

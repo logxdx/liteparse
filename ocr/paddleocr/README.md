@@ -77,10 +77,10 @@ Once the server is running, use it with LiteParse:
 
 ```bash
 # Parse with PaddleOCR
-lit parse document.pdf --ocr-server-url http://localhost:8829/ocr
+liteparse parse document.pdf --ocr-server-url http://localhost:8829/ocr
 
 # With specific language
-lit parse document.pdf --ocr-server-url http://localhost:8829/ocr --ocr-language zh
+liteparse parse document.pdf --ocr-server-url http://localhost:8829/ocr --ocr-language zh
 ```
 
 Or in code:

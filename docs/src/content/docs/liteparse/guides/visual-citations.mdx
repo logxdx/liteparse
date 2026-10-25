@@ -14,7 +14,7 @@ LiteParse gives you spatial coordinates for every text item, plus page screensho
 When you parse a document with JSON output, each page includes a list of text items — every extracted text element with its position (`x`, `y`, `width`, `height`) and content.
 
 ```bash
-lit parse document.pdf --format json
+liteparse parse document.pdf --format json
 ```
 
 ```json
@@ -181,13 +181,13 @@ Running this script on a PDF will produce new images with the search phrase high
 Parse to JSON to get bounding boxes:
 
 ```bash
-lit parse document.pdf --format json -o result.json
+liteparse parse document.pdf --format json -o result.json
 ```
 
 Generate page screenshots alongside:
 
 ```bash
-lit screenshot document.pdf -o ./screenshots
+liteparse screenshot document.pdf -o ./screenshots
 ```
 
 From there, you (or an agent) can process the resulting JSON and screenshots as needed using any tools available.

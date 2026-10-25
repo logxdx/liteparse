@@ -12,7 +12,7 @@ LiteParse uses OCR selectively — only on embedded images or pages where native
 Tesseract is bundled with LiteParse and works out of the box. Just run:
 
 ```bash
-lit parse document.pdf
+liteparse parse document.pdf
 ```
 
 ### Language support
@@ -20,9 +20,9 @@ lit parse document.pdf
 Specify the OCR language for better accuracy on non-English documents:
 
 ```bash
-lit parse document.pdf --ocr-language fra    # French
-lit parse document.pdf --ocr-language deu    # German
-lit parse document.pdf --ocr-language jpn    # Japanese
+liteparse parse document.pdf --ocr-language fra    # French
+liteparse parse document.pdf --ocr-language deu    # German
+liteparse parse document.pdf --ocr-language jpn    # Japanese
 ```
 
 Tesseract uses [ISO 639-3](https://tesseract-ocr.github.io/tessdoc/Data-Files-in-different-versions.html) language codes (`eng`, `fra`, `deu`, etc.).
@@ -34,10 +34,10 @@ For environments without internet access, point Tesseract at a local directory c
 ```bash
 # Via environment variable
 export TESSDATA_PREFIX=/path/to/tessdata
-lit parse document.pdf --ocr-language eng
+liteparse parse document.pdf --ocr-language eng
 
 # Or via CLI flag
-lit parse document.pdf --tessdata-path /path/to/tessdata
+liteparse parse document.pdf --tessdata-path /path/to/tessdata
 ```
 
 The `tessdata_path` / `tessdataPath` option is also available in the library APIs.
@@ -67,7 +67,7 @@ When language data is missing for **every** page, LiteParse now fails with a cle
 If you don't need OCR (pure native-text PDFs, or you don't care about images), disable it for faster parsing:
 
 ```bash
-lit parse document.pdf --no-ocr
+liteparse parse document.pdf --no-ocr
 ```
 
 ## HTTP OCR servers
@@ -84,7 +84,7 @@ pip install -r requirements.txt
 python server.py
 
 # Parse with EasyOCR in another terminal
-lit parse document.pdf --ocr-server-url http://localhost:8828/ocr
+liteparse parse document.pdf --ocr-server-url http://localhost:8828/ocr
 ```
 
 ### PaddleOCR
@@ -97,7 +97,7 @@ pip install -r requirements.txt
 python server.py
 
 # Parse with PaddleOCR in another terminal
-lit parse document.pdf --ocr-server-url http://localhost:8828/ocr
+liteparse parse document.pdf --ocr-server-url http://localhost:8828/ocr
 ```
 
 ### Authenticated servers
@@ -105,7 +105,7 @@ lit parse document.pdf --ocr-server-url http://localhost:8828/ocr
 Pass extra HTTP headers on every OCR request with `--ocr-server-header`, repeating the flag for each header:
 
 ```bash
-lit parse document.pdf \
+liteparse parse document.pdf \
   --ocr-server-url https://ocr.internal/ocr \
   --ocr-server-header "Authorization: Bearer $TOKEN" \
   --ocr-server-header "X-Tenant: acme"
@@ -118,7 +118,7 @@ In the libraries this is `ocr_server_headers` / `ocrServerHeaders`, taking a map
 LiteParse OCRs multiple pages in parallel. By default, it uses one fewer worker than your CPU core count. Override this with:
 
 ```bash
-lit parse document.pdf --num-workers 8
+liteparse parse document.pdf --num-workers 8
 ```
 
 This is useful if you need to slow down OCR requests to an external server or if your OCR engine is GPU-accelerated and can handle more concurrency.
@@ -172,7 +172,7 @@ curl -X POST http://localhost:8828/ocr \
   -F "language=en" | jq .
 
 # Use with LiteParse
-lit parse document.pdf --ocr-server-url http://localhost:8828/ocr
+liteparse parse document.pdf --ocr-server-url http://localhost:8828/ocr
 ```
 
 ### Common Gotchas

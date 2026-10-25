@@ -1,4 +1,4 @@
-"""CLI entry point for the `lit` command."""
+"""CLI entry point for the `liteparse` command."""
 
 import sys
 

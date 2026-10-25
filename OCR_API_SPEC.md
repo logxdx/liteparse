@@ -179,7 +179,7 @@ curl -X POST http://localhost:8080/ocr \
 Use with LiteParse:
 
 ```bash
-lit parse document.pdf --ocr-server-url http://localhost:8080/ocr
+liteparse parse document.pdf --ocr-server-url http://localhost:8080/ocr
 ```
 
 ## FAQ

@@ -17,9 +17,9 @@ DATASET_DIR="${1:-$REPO_ROOT/dataset}"
 DOCUMENTS_DIR="$DATASET_DIR/data"
 METADATA_FILE="$DATASET_DIR/metadata.jsonl"
 
-LIT="$REPO_ROOT/target/release/lit"
+LIT="$REPO_ROOT/target/release/liteparse"
 if [ ! -x "$LIT" ]; then
-  echo "ERROR: lit binary not found at $LIT. Run 'cargo build --release' first."
+  echo "ERROR: liteparse binary not found at $LIT. Run 'cargo build --release' first."
   exit 2
 fi
 

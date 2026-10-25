@@ -57,7 +57,7 @@ Layout complexity is deliberately **separate from `needs_ocr`**. A crisp, fully-
 ## CLI
 
 ```bash
-lit is-complex document.pdf
+liteparse is-complex document.pdf
 ```
 
 The command always prints per-page JSON to **stdout**, a human-readable verdict to **stderr**, and sets its **exit code** to reflect the result — so you can consume it however fits your workflow.
@@ -102,13 +102,13 @@ The exit code is **non-zero when any page needs OCR**, so the command works as a
 
 ```bash
 # Only parse with --no-ocr when the document is simple
-lit is-complex document.pdf --quiet && lit parse document.pdf --no-ocr
+liteparse is-complex document.pdf --quiet && liteparse parse document.pdf --no-ocr
 ```
 
 Pipe the JSON into `jq` to act on individual pages. The example below will list the page numbers that need OCR:
 
 ```bash
-lit is-complex document.pdf --compact | jq '[.[] | select(.needs_ocr) | .page_number]'
+liteparse is-complex document.pdf --compact | jq '[.[] | select(.needs_ocr) | .page_number]'
 ```
 
 ### Options
@@ -123,15 +123,15 @@ lit is-complex document.pdf --compact | jq '[.[] | select(.needs_ocr) | .page_nu
 
 ### Inline with a parse
 
-`lit is-complex` is a standalone pre-parse pass. If you're parsing the document anyway and just want the signals alongside the content, pass `--complexity` to `lit parse` instead — it adds a `complexity` object to each page of the JSON output, with the same fields described here.
+`liteparse is-complex` is a standalone pre-parse pass. If you're parsing the document anyway and just want the signals alongside the content, pass `--complexity` to `liteparse parse` instead — it adds a `complexity` object to each page of the JSON output, with the same fields described here.
 
 ```bash
-lit parse document.pdf --format json --complexity
+liteparse parse document.pdf --format json --complexity
 ```
 
 This is off by default: computing layout signals requires the full spatial projection, so it only runs when you ask for it.
 
-> `lit is-complex` always populates `layout`. Within `lit parse`, the `complexity` object (and its `layout`) appears only when `--complexity` is set.
+> `liteparse is-complex` always populates `layout`. Within `liteparse parse`, the `complexity` object (and its `layout`) appears only when `--complexity` is set.
 
 ## Library
 

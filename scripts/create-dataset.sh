@@ -32,9 +32,9 @@ if [ "$RESOLVED_SOURCE" = "$RESOLVED_DOCUMENTS" ]; then
   SKIP_COPY=true
 fi
 
-LIT="$REPO_ROOT/target/release/lit"
+LIT="$REPO_ROOT/target/release/liteparse"
 if [ ! -x "$LIT" ]; then
-  echo "ERROR: lit binary not found at $LIT. Run 'cargo build --release' first."
+  echo "ERROR: liteparse binary not found at $LIT. Run 'cargo build --release' first."
   exit 1
 fi
 
@@ -68,7 +68,7 @@ while IFS= read -r -d '' file; do
     cp "$file" "$DEST_PATH"
   fi
 
-  # Parse with lit and capture JSON output to a temp file (avoids argument list too long)
+  # Parse with liteparse and capture JSON output to a temp file (avoids argument list too long)
   JSON_TMPFILE=$(mktemp)
   trap "rm -f '$JSON_TMPFILE'" EXIT
   PARSE_ERROR=""

@@ -113,7 +113,7 @@ flowchart LR
 
 ## 安装
 
-可通过你常用的包管理器安装。除 WASM 之外，所有版本都附带相同的 `lit` 命令行工具。
+可通过你常用的包管理器安装。除 WASM 之外，所有版本都附带相同的 `liteparse` 命令行工具。
 
 | 语言 | 安装命令 | 库文档 |
 |----------|---------|--------------|
@@ -140,19 +140,19 @@ npx skills add run-llama/llamaparse-agent-skills --skill liteparse
 
 ```bash
 # 基本解析
-lit parse document.pdf
+liteparse parse document.pdf
 
 # 指定输出格式
-lit parse document.pdf --format json -o output.json
+liteparse parse document.pdf --format json -o output.json
 
 # 只解析特定页
-lit parse document.pdf --target-pages "1-5,10,15-20"
+liteparse parse document.pdf --target-pages "1-5,10,15-20"
 
 # 关闭 OCR
-lit parse document.pdf --no-ocr
+liteparse parse document.pdf --no-ocr
 
 # 解析远程 PDF
-curl -sL https://example.com/report.pdf | lit parse -
+curl -sL https://example.com/report.pdf | liteparse parse -
 ```
 
 ### 批量解析
@@ -160,7 +160,7 @@ curl -sL https://example.com/report.pdf | lit parse -
 对整个目录中的文档进行批量解析：
 
 ```bash
-lit batch-parse ./input-directory ./output-directory
+liteparse batch-parse ./input-directory ./output-directory
 ```
 
 ### 生成截图
@@ -169,13 +169,13 @@ lit batch-parse ./input-directory ./output-directory
 
 ```bash
 # 截图所有页
-lit screenshot document.pdf -o ./screenshots
+liteparse screenshot document.pdf -o ./screenshots
 
 # 只截特定页
-lit screenshot document.pdf --target-pages "1,3,5" -o ./screenshots
+liteparse screenshot document.pdf --target-pages "1,3,5" -o ./screenshots
 
 # 自定义 DPI
-lit screenshot document.pdf --dpi 300 -o ./screenshots
+liteparse screenshot document.pdf --dpi 300 -o ./screenshots
 ```
 
 ### 命令行参考
@@ -183,7 +183,7 @@ lit screenshot document.pdf --dpi 300 -o ./screenshots
 #### Parse 命令
 
 ```
-lit parse [OPTIONS] <file>
+liteparse parse [OPTIONS] <file>
 
 Options:
   -o, --output <file>          Output file path
@@ -205,7 +205,7 @@ Options:
 #### Batch Parse 命令
 
 ```
-lit batch-parse [OPTIONS] <input-dir> <output-dir>
+liteparse batch-parse [OPTIONS] <input-dir> <output-dir>
 
 Options:
       --format <format>        Output format: json|text [default: text]
@@ -226,7 +226,7 @@ Options:
 #### Screenshot 命令
 
 ```
-lit screenshot [OPTIONS] <file>
+liteparse screenshot [OPTIONS] <file>
 
 Options:
   -o, --output-dir <dir>       Output directory [default: ./screenshots]
@@ -244,22 +244,22 @@ Options:
 Tesseract 已经随库打包，开箱即用：
 
 ```bash
-lit parse document.pdf                    # 默认启用 OCR
-lit parse document.pdf --ocr-language fra # 指定识别语言
-lit parse document.pdf --no-ocr           # 关闭 OCR
+liteparse parse document.pdf                    # 默认启用 OCR
+liteparse parse document.pdf --ocr-language fra # 指定识别语言
+liteparse parse document.pdf --no-ocr           # 关闭 OCR
 ```
 
 如果运行在离线或内网隔离环境，可以把 `TESSDATA_PREFIX` 指向一个预先准备好的、放有 `.traineddata` 文件的目录：
 
 ```bash
 export TESSDATA_PREFIX=/path/to/tessdata
-lit parse document.pdf --ocr-language eng
+liteparse parse document.pdf --ocr-language eng
 ```
 
 也可以直接通过命令行参数传入路径：
 
 ```bash
-lit parse document.pdf --tessdata-path /path/to/tessdata
+liteparse parse document.pdf --tessdata-path /path/to/tessdata
 ```
 
 ### 可选方案：HTTP OCR 服务

@@ -16,10 +16,10 @@ Markdown is a first-class output format alongside `text` and `json`.
 
 ```bash
 # Render a document to Markdown
-lit parse document.pdf --format markdown -o output.md
+liteparse parse document.pdf --format markdown -o output.md
 
 # Print Markdown to stdout
-lit parse document.pdf --format markdown
+liteparse parse document.pdf --format markdown
 ```
 
 ### Images
@@ -39,10 +39,10 @@ not, on its own, decode any pixels. To actually get image bytes, use
 
 ```bash
 # Strip images
-lit parse document.pdf --format markdown --image-mode off
+liteparse parse document.pdf --format markdown --image-mode off
 
 # Extract embedded images to disk and reference them from the markdown
-lit parse document.pdf --format markdown --extract-images --image-output-dir ./images
+liteparse parse document.pdf --format markdown --extract-images --image-output-dir ./images
 ```
 
 `--image-output-dir` requires `--extract-images`. For backwards compatibility
@@ -55,7 +55,7 @@ Hyperlink annotations are rendered as `[text](url)` by default. Pass
 `--no-links` to emit the anchor text as plain text instead:
 
 ```bash
-lit parse document.pdf --format markdown --no-links
+liteparse parse document.pdf --format markdown --no-links
 ```
 
 ### Headers and footers
@@ -65,7 +65,7 @@ page) are stripped from markdown output by default, since they interrupt the
 prose when chunked for retrieval. Pass `--keep-headers-footers` to retain them:
 
 ```bash
-lit parse document.pdf --format markdown --keep-headers-footers
+liteparse parse document.pdf --format markdown --keep-headers-footers
 ```
 
 ## Library

@@ -299,18 +299,18 @@ not inherit the OAR model or runtime dependency footprint.
 
 ## CLI
 
-The crate also builds the `lit` CLI binary:
+The crate also builds the `liteparse` CLI binary:
 
 ```bash
-lit parse document.pdf
-lit parse document.pdf --format json -o output.json
-lit parse document.pdf --format markdown -o output.md
-lit screenshot document.pdf -o ./screenshots
-lit batch-parse ./input ./output
-lit is-complex document.pdf
+liteparse parse document.pdf
+liteparse parse document.pdf --format json -o output.json
+liteparse parse document.pdf --format markdown -o output.md
+liteparse screenshot document.pdf -o ./screenshots
+liteparse batch-parse ./input ./output
+liteparse is-complex document.pdf
 ```
 
-See `lit --help` for all options.
+See `liteparse --help` for all options.
 
 ## License
 

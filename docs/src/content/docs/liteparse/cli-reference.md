@@ -5,14 +5,14 @@ sidebar:
   order: 5
 ---
 
-LiteParse provides the `lit` CLI with four commands: `parse`, `batch-parse`, `screenshot`, and `is-complex`. The CLI is the same whether installed via `npm`, `pip`, or built from Rust source.
+LiteParse provides the `liteparse` CLI with four commands: `parse`, `batch-parse`, `screenshot`, and `is-complex`. The CLI is the same whether installed via `npm`, `pip`, or built from Rust source.
 
-## `lit parse`
+## `liteparse parse`
 
 Parse a single document.
 
 ```
-lit parse [options] <file>
+liteparse parse [options] <file>
 ```
 
 ### Arguments
@@ -65,54 +65,54 @@ By default, JSON output contains only text, geometry, and page metadata. Each op
 
 ```bash
 # Basic text parsing
-lit parse report.pdf
+liteparse parse report.pdf
 
 # JSON output with bounding boxes
-lit parse report.pdf --format json -o report.json
+liteparse parse report.pdf --format json -o report.json
 
 # Markdown output (headings, tables, lists, images, links)
-lit parse report.pdf --format markdown -o report.md
+liteparse parse report.pdf --format markdown -o report.md
 
 # Markdown with extracted images written to disk
-lit parse report.pdf --format markdown --extract-images --image-output-dir ./images
+liteparse parse report.pdf --format markdown --extract-images --image-output-dir ./images
 
 # Pull form fields and annotations out of a filled-in PDF
-lit parse form.pdf --format json --extract-form-fields --extract-annotations
+liteparse parse form.pdf --format json --extract-form-fields --extract-annotations
 
 # Rich typography metadata on every text item
-lit parse report.pdf --format json --extract-text-metadata
+liteparse parse report.pdf --format json --extract-text-metadata
 
 # Inline complexity signals (including layout) alongside the parse
-lit parse report.pdf --format json --complexity
+liteparse parse report.pdf --format json --complexity
 
 # Authenticated OCR server
-lit parse scan.pdf --ocr-server-url https://ocr.internal/ocr \
+liteparse parse scan.pdf --ocr-server-url https://ocr.internal/ocr \
   --ocr-server-header "Authorization: Bearer $TOKEN"
 
 # Parse pages 1-5 only, no OCR
-lit parse report.pdf --target-pages "1-5" --no-ocr
+liteparse parse report.pdf --target-pages "1-5" --no-ocr
 
 # High-DPI rendering with French OCR
-lit parse report.pdf --dpi 300 --ocr-language fra
+liteparse parse report.pdf --dpi 300 --ocr-language fra
 
 # Use an external OCR server
-lit parse report.pdf --ocr-server-url http://localhost:8828/ocr
+liteparse parse report.pdf --ocr-server-url http://localhost:8828/ocr
 
 # Pipe output to another tool
-lit parse report.pdf -q | wc -l
+liteparse parse report.pdf -q | wc -l
 
 # Parse a remote file via stdin
-curl -sL https://example.com/report.pdf | lit parse --no-ocr -
+curl -sL https://example.com/report.pdf | liteparse parse --no-ocr -
 ```
 
 ---
 
-## `lit batch-parse`
+## `liteparse batch-parse`
 
 Parse multiple documents in a directory.
 
 ```
-lit batch-parse [options] <input-dir> <output-dir>
+liteparse batch-parse [options] <input-dir> <output-dir>
 ```
 
 ### Arguments
@@ -140,31 +140,31 @@ lit batch-parse [options] <input-dir> <output-dir>
 | `--password <password>` | Password for encrypted/protected documents (applied to all files) | — |
 | `-q, --quiet` | Suppress progress output | — |
 
-`batch-parse` accepts the same [extraction options](#extraction-options) as `lit parse`: `--extract-images`, `--extract-vector-graphics`, `--extract-annotations`, `--extract-form-fields`, `--extract-structure-tree`, `--extract-blocks`, `--extract-content-bounds`, `--extract-xfa-packets`, `--extract-text-metadata`, and `--complexity`.
+`batch-parse` accepts the same [extraction options](#extraction-options) as `liteparse parse`: `--extract-images`, `--extract-vector-graphics`, `--extract-annotations`, `--extract-form-fields`, `--extract-structure-tree`, `--extract-blocks`, `--extract-content-bounds`, `--extract-xfa-packets`, `--extract-text-metadata`, and `--complexity`.
 
-It does **not** accept `--target-pages`, `--preserve-small-text`, `--image-mode`, `--image-output-dir`, `--no-links`, or `--keep-headers-footers`. Use `lit parse` per file when you need those.
+It does **not** accept `--target-pages`, `--preserve-small-text`, `--image-mode`, `--image-output-dir`, `--no-links`, or `--keep-headers-footers`. Use `liteparse parse` per file when you need those.
 
 ### Examples
 
 ```bash
 # Parse all supported files in a directory
-lit batch-parse ./documents ./output
+liteparse batch-parse ./documents ./output
 
 # Recursively parse only PDFs
-lit batch-parse ./documents ./output --recursive --extension ".pdf"
+liteparse batch-parse ./documents ./output --recursive --extension ".pdf"
 
 # Batch parse with JSON output and no OCR
-lit batch-parse ./documents ./output --format json --no-ocr
+liteparse batch-parse ./documents ./output --format json --no-ocr
 ```
 
 ---
 
-## `lit screenshot`
+## `liteparse screenshot`
 
 Generate page images from a document (PDF, DOCX, XLSX, images, etc.).
 
 ```
-lit screenshot [options] <file>
+liteparse screenshot [options] <file>
 ```
 
 ### Arguments
@@ -187,26 +187,26 @@ lit screenshot [options] <file>
 
 ```bash
 # Screenshot all pages of a PDF
-lit screenshot document.pdf -o ./pages
+liteparse screenshot document.pdf -o ./pages
 
 # Screenshot a Word document (requires LibreOffice)
-lit screenshot report.docx -o ./pages
+liteparse screenshot report.docx -o ./pages
 
 # First 5 pages at high DPI
-lit screenshot document.pdf --target-pages "1-5" --dpi 300 -o ./pages
+liteparse screenshot document.pdf --target-pages "1-5" --dpi 300 -o ./pages
 
 # Specific pages only
-lit screenshot document.pdf --target-pages "1,5,10" -o ./pages
+liteparse screenshot document.pdf --target-pages "1,5,10" -o ./pages
 ```
 
 ---
 
-## `lit is-complex`
+## `liteparse is-complex`
 
 Check whether a document needs OCR or heavier parsing — a cheap pre-parse pass over the text layer only (no rasterization, no OCR). See the [Document Complexity guide](/liteparse/guides/complexity/) for details.
 
 ```
-lit is-complex [options] <file>
+liteparse is-complex [options] <file>
 ```
 
 The command prints per-page JSON to **stdout**, a human-readable verdict to **stderr**, and exits **non-zero when any page needs OCR** — so it works as a shell predicate or a `jq` source.
@@ -231,13 +231,13 @@ The command prints per-page JSON to **stdout**, a human-readable verdict to **st
 
 ```bash
 # Print the complexity verdict and per-page JSON
-lit is-complex document.pdf
+liteparse is-complex document.pdf
 
 # Use as a shell predicate: only parse with --no-ocr when simple
-lit is-complex document.pdf --quiet && lit parse document.pdf --no-ocr
+liteparse is-complex document.pdf --quiet && liteparse parse document.pdf --no-ocr
 
 # List the page numbers that need OCR
-lit is-complex document.pdf --compact | jq '[.[] | select(.needs_ocr) | .page_number]'
+liteparse is-complex document.pdf --compact | jq '[.[] | select(.needs_ocr) | .page_number]'
 ```
 
 ---

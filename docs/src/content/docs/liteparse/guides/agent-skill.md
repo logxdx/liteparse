@@ -30,7 +30,7 @@ inside Claude Code or Codex.
 
 | Requirement | Needed for |
 | --- | --- |
-| Node 18+ and `npm i -g @llamaindex/liteparse` | The `lit` CLI the skill drives — verify with `lit --version` |
+| Node 18+ and `npm i -g @llamaindex/liteparse` | The `liteparse` CLI the skill drives — verify with `liteparse --version` |
 | [LibreOffice](https://www.libreoffice.org/) | Parsing Office files (DOCX, XLSX, PPTX) |
 | [`uv`](https://docs.astral.sh/uv/) | The bundled ranked-search helper |
 
@@ -42,7 +42,7 @@ The skill is more than an install: it encodes the extraction patterns that keep 
 small and its runs cheap. Without it, agents commonly re-parse the same document on every search and
 dump entire pages into the conversation.
 
-- **Parse once to a file, then search that file.** Each `lit parse` re-extracts the whole document,
+- **Parse once to a file, then search that file.** Each `liteparse parse` re-extracts the whole document,
   so the skill has the agent parse to a temp file and run all subsequent searches against it.
 - **Minimize round-trips.** Fetch a match and its surrounding context in a single command, and batch
   independent lookups together rather than spending a turn per search term.

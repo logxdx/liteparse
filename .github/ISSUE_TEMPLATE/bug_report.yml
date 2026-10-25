@@ -24,7 +24,7 @@ body:
       label: Steps to Reproduce
       description: How can we reproduce this issue?
       placeholder: |
-        1. Run `lit parse ...`
+        1. Run `liteparse parse ...`
         2. See error
     validations:
       required: true
@@ -42,7 +42,7 @@ body:
     id: version
     attributes:
       label: LiteParse Version
-      description: Run `lit --version` to get this
+      description: Run `liteparse --version` to get this
       placeholder: "0.1.0"
     validations:
       required: true

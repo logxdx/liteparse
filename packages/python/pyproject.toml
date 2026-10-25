@@ -35,7 +35,7 @@ Documentation = "https://github.com/run-llama/liteparse#readme"
 Repository = "https://github.com/run-llama/liteparse"
 
 [project.scripts]
-lit = "liteparse.cli:main"
+liteparse = "liteparse.cli:main"
 
 [project.optional-dependencies]
 dev = [

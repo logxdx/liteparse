@@ -135,7 +135,7 @@ node dist/cli.js parse document.pdf
 
 # Python CLI
 cd packages/python && maturin develop
-lit parse document.pdf
+liteparse parse document.pdf
 ```
 
 ### Linting & Formatting
@@ -152,18 +152,18 @@ When working on the grid projection algorithm, you can enable built-in debug log
 **Debug logging** traces every decision the projection makes — block detection, anchor extraction, snap assignment, rendering, and flowing text classification:
 
 ```bash
-lit parse document.pdf --debug
-lit parse document.pdf --debug --debug-page 3
-lit parse document.pdf --debug --debug-text-filter "Total" "Revenue"
-lit parse document.pdf --debug --debug-region "0,100,300,200"
-lit parse document.pdf --debug --debug-output ./debug-output
+liteparse parse document.pdf --debug
+liteparse parse document.pdf --debug --debug-page 3
+liteparse parse document.pdf --debug --debug-text-filter "Total" "Revenue"
+liteparse parse document.pdf --debug --debug-region "0,100,300,200"
+liteparse parse document.pdf --debug --debug-output ./debug-output
 ```
 
 **Visual grid export** generates PNG images showing text boxes color-coded by snap type (blue=left, red=right, green=center, gray=floating, yellow=flowing) with anchor lines overlaid:
 
 ```bash
-lit parse document.pdf --debug-visualize
-lit parse document.pdf --debug-visualize --debug-output ./my-debug
+liteparse parse document.pdf --debug-visualize
+liteparse parse document.pdf --debug-visualize --debug-output ./my-debug
 ```
 
 ## Pull Requests
@@ -191,7 +191,7 @@ If you're reporting a problem with document parsing:
 1. **You must attach the document** or provide a way to reproduce the issue
 2. Include the command you ran
 3. Show the expected vs actual output
-4. Include your LiteParse version (`lit --version`)
+4. Include your LiteParse version (`liteparse --version`)
 
 Issues without reproducible examples will be closed.
 

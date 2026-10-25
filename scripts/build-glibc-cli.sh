@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -eux
 
-# Build the `lit` CLI inside an OLD-glibc Debian container so the resulting
+# Build the `liteparse` CLI inside an OLD-glibc Debian container so the resulting
 # binary loads on hosts with an older glibc than the CI runner.
 #
 # The GitHub `ubuntu-22.04` runners ship glibc 2.35, which bakes a `GLIBC_2.35`
@@ -65,7 +65,7 @@ curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs \
 
 cargo build --release --target "$TARGET" -p liteparse
 
-BIN="target/$TARGET/release/lit"
+BIN="target/$TARGET/release/liteparse"
 echo "Built CLI: $BIN"
 ls -la "$BIN"
 echo "glibc symbol versions required by $BIN:"

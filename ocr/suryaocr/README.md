@@ -148,7 +148,7 @@ For a turnkey GPU deployment, prefer the Docker image above — it wires both up
 ## Use with LiteParse
 
 ```bash
-lit parse document.pdf --ocr-server-url http://localhost:8830/ocr
+liteparse parse document.pdf --ocr-server-url http://localhost:8830/ocr
 ```
 
 Or in code:
