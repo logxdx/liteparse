@@ -16,7 +16,8 @@ set -eux
 # compiles Tesseract + Leptonica from source; on linux-gnu it uses
 # g++/libstdc++, so no clang/libc++ bundling is required.
 
-TARGET="${1:?usage: build-glibc-cli.sh <rust-target>}"
+TARGET="${1:?usage: build-glibc-cli.sh <rust-target> [cargo-features]}"
+FEATURES="${2:-}"
 
 export DEBIAN_FRONTEND=noninteractive
 # Debian 11 (bullseye) is past end-of-life, and deb.debian.org has started
@@ -63,7 +64,7 @@ curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs \
   | sh -s -- -y --default-toolchain 1.95.0 -t "$TARGET"
 . "$HOME/.cargo/env"
 
-cargo build --release --target "$TARGET" -p liteparse
+cargo build --release --target "$TARGET" -p liteparse ${FEATURES:+--features "$FEATURES"}
 
 BIN="target/$TARGET/release/liteparse"
 echo "Built CLI: $BIN"
