@@ -4,6 +4,7 @@
 //! commit (tag `v1.1.0`, the model set this port was validated against), are
 //! checked against fixed SHA-256 digests, and are cached under
 //! `$INDRA_OCR_HOME`, else `$XDG_CACHE_HOME/liteparse/indra-ocr/<commit>`, else
+//! `%LOCALAPPDATA%\liteparse\indra-ocr\<commit>` on Windows, else
 //! `~/.cache/liteparse/indra-ocr/<commit>`.
 //!
 //! The weights are licensed under a modified OpenRAIL-M license, not Apache-2.0:
@@ -110,8 +111,16 @@ pub fn cache_dir() -> Result<PathBuf, LiteParseError> {
     if let Some(home) = std::env::var_os("INDRA_OCR_HOME") {
         return Ok(PathBuf::from(home));
     }
+    // PowerShell and cmd set neither XDG_CACHE_HOME nor HOME.
+    let windows_cache = || {
+        cfg!(windows)
+            .then(|| std::env::var_os("LOCALAPPDATA"))
+            .flatten()
+            .map(PathBuf::from)
+    };
     let base = std::env::var_os("XDG_CACHE_HOME")
         .map(PathBuf::from)
+        .or_else(windows_cache)
         .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".cache")))
         .ok_or_else(|| {
             LiteParseError::Ocr("indra: no cache directory (set INDRA_OCR_HOME)".into())

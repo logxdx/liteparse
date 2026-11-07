@@ -265,7 +265,8 @@ model files that are missing switch their step off.
 With `indra-ocr-auto-download`, `IndraOcrEngine::download(ModelSet::Full, options)`
 fetches the models from the pinned revision, verifies their SHA-256 digests and
 caches them under `$INDRA_OCR_HOME` (default
-`~/.cache/liteparse/indra-ocr/<commit>`). `ModelSet::Base` (about 6 MB) covers
+`~/.cache/liteparse/indra-ocr/<commit>`, or
+`%LOCALAPPDATA%\liteparse\indra-ocr\<commit>` on Windows). `ModelSet::Base` (about 6 MB) covers
 Latin, Greek, Cyrillic, Devanagari and Bengali; `ModelSet::Full` (about 73 MB)
 adds Chinese, Japanese, Korean, Arabic, Hebrew and other scripts, and the
 language models.
