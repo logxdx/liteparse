@@ -371,7 +371,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     name: Test CLI ${{ matrix.name }}
     env:
-      INDRA_OCR_HOME: ${{ github.workspace }}/../indra-models
+      INDRA_OCR_HOME: ${{ github.workspace }}/indra-models
     steps:
       - uses: actions/checkout@v4
         with:
@@ -384,7 +384,7 @@ jobs:
 
       - uses: actions/cache@v4
         with:
-          path: ${{ github.workspace }}/../indra-models
+          path: indra-models
           key: indra-models-v1.1.0
 
       - name: Unpack
