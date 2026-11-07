@@ -54,7 +54,7 @@ curl -X POST http://localhost:8832/ocr \
 ```
 
 ```bash
-lit parse document.pdf --ocr-server-url http://localhost:8832/ocr
+liteparse parse document.pdf --ocr-server-url http://localhost:8832/ocr
 ```
 
 ## Docker
