@@ -14,6 +14,22 @@ name = "liteparse"
 name = "liteparse"
 path = "src/main.rs"
 
+[[example]]
+name = "indra_download"
+required-features = ["indra-ocr-auto-download"]
+
+[[example]]
+name = "indra_probe"
+required-features = ["indra-ocr"]
+
+[[example]]
+name = "ocr_pages"
+required-features = ["indra-ocr"]
+
+[[example]]
+name = "ocr_parse"
+required-features = ["indra-ocr"]
+
 [features]
 default = ["tesseract"]
 indra-ocr = ["dep:ort", "dep:unicode-bidi", "dep:unicode-normalization", "dep:zip"]
