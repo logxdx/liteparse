@@ -24,14 +24,19 @@ env:
 jobs:
   test:
     name: Test (indra-ocr)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    env:
+      # ONNX Runtime's static library needs GCC 14's libstdc++.
+      CC: gcc-14
+      CXX: g++-14
+      CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER: gcc-14
     steps:
       - uses: actions/checkout@v4
 
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libtesseract-dev libleptonica-dev
+          sudo apt-get install -y libtesseract-dev libleptonica-dev gcc-14 g++-14
 
       - uses: dtolnay/rust-toolchain@1.95.0
 
@@ -44,7 +49,7 @@ jobs:
             target
           key: ${{ runner.os }}-cargo-fork-test-${{ hashFiles('**/Cargo.lock') }}
 
-      - run: cargo test -p liteparse --features indra-ocr --locked
+      - run: cargo test -p liteparse --features indra-ocr-auto-download --locked
 
   build-wheels:
     strategy:
@@ -219,15 +224,26 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # ONNX Runtime's prebuilt static library needs glibc 2.38 and GCC 14's
+          # libstdc++, so the Indra builds target current distros...
           - target: x86_64-unknown-linux-gnu
-            os: ubuntu-22.04
+            os: ubuntu-24.04
             name: linux-x64
             features: indra-ocr-auto-download
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-24.04-arm
+            name: linux-arm64
+            features: indra-ocr-auto-download
+          # ...and the compat builds keep the glibc 2.31 baseline, Tesseract only.
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-22.04
+            name: linux-x64-compat
+            features: ""
             glibc-container: true
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-22.04-arm
-            name: linux-arm64
-            features: indra-ocr-auto-download
+            name: linux-arm64-compat
+            features: ""
             glibc-container: true
           - target: aarch64-apple-darwin
             os: macos-latest
@@ -256,6 +272,16 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
+      - name: Install system dependencies (Linux)
+        if: runner.os == 'Linux' && !matrix.glibc-container
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libtesseract-dev libleptonica-dev gcc-14 g++-14
+          target_env=$(echo "${{ matrix.target }}" | tr 'a-z-' 'A-Z_')
+          echo "CC=gcc-14" >> $GITHUB_ENV
+          echo "CXX=g++-14" >> $GITHUB_ENV
+          echo "CARGO_TARGET_${target_env}_LINKER=gcc-14" >> $GITHUB_ENV
+
       - name: Install system dependencies (macOS)
         if: runner.os == 'macOS'
         run: brew install tesseract leptonica
@@ -274,7 +300,7 @@ jobs:
             ~/Library/Caches/pdfium-rs
             ${{ runner.os == 'Windows' && format('{0}\pdfium-rs', env.LOCALAPPDATA) || '' }}
             target
-          key: ${{ runner.os }}-${{ matrix.target }}-cargo-fork-cli-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ matrix.os }}-${{ matrix.target }}-cargo-fork-cli-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Build
         if: ${{ !matrix.glibc-container }}
@@ -309,6 +335,9 @@ jobs:
             if [ -f "$out/deps/$lib" ]; then cp "$out/deps/$lib" "dist/$name/"; fi
           done
           ls dist/$name | grep -q pdfium || { echo "::error::pdfium library not found in $out/deps"; exit 1; }
+          if [ "$RUNNER_OS" = Linux ]; then
+            echo "Needs glibc $(objdump -T "dist/$name/$exe" | grep -oE 'GLIBC_[0-9.]+' | sort -uV | tail -1)"
+          fi
           cd dist
           if [ "$RUNNER_OS" = Windows ]; then
             7z a "$name.zip" "$name" > /dev/null
@@ -331,8 +360,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: ubuntu-22.04, name: linux-x64 }
-          - { os: ubuntu-22.04-arm, name: linux-arm64 }
+          - { os: ubuntu-24.04, name: linux-x64 }
+          - { os: ubuntu-24.04-arm, name: linux-arm64 }
+          - { os: ubuntu-22.04, name: linux-x64-compat }
+          - { os: ubuntu-22.04-arm, name: linux-arm64-compat }
           - { os: macos-latest, name: macos-arm64 }
           - { os: macos-26-intel, name: macos-x64 }
           - { os: windows-latest, name: windows-x64 }
