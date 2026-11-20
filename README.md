@@ -389,6 +389,8 @@ blocks, the Markdown output is built from. Every block carries:
 - `bbox`: the region it occupies, in the same top-left 72-DPI viewport space as
   `text_items`. This is the union of every source line that fed the block, so a
   wrapped heading or a multi-line paragraph reports its whole band.
+- `text_item_indices`: the positions in `text_items` of the items the block was
+  read from, so a block links back to the text it was built from.
 - Kind-specific fields, omitted when they don't apply: `text` and `level` for
   headings; `ordered` / `marker` for list items; `lines` and `lang` for code;
   `header` and `rows` for tables; `id` / `format` for figures.
@@ -518,6 +520,7 @@ Options:
       --extract-vector-graphics Include page vector shapes and merged H/V lines
       --no-links               Emit link anchor text as plain text (no [text](url)) in markdown
       --keep-headers-footers   Keep running headers/footers in markdown (skip repeated-line stripping)
+      --keep-clipped-text      Keep text hidden by clips (e.g. overflow from fixed-height table cells)
       --extract-annotations    Include PDF annotations in page output
       --extract-form-fields    Include AcroForm widget fields and values
       --preserve-small-text    Keep very small text
@@ -678,16 +681,31 @@ packages/
 
 ### Building
 
+Install the [development prerequisites](CONTRIBUTING.md#development-prerequisites)
+before building from source. All builds need the Rust toolchain; the bindings
+also need their language-specific tools. The Python build needs an active
+virtual environment, and the WASM build needs `wasm-pack`.
+
+Run each example below from the repository root.
+
 ```bash
 # Build the CLI
 cargo build --release -p liteparse
+```
 
+```bash
 # Build Node.js bindings
-cd packages/node && npm run build
+cd packages/node
+npm install
+npm run build
+```
 
+```bash
 # Build Python bindings
 cd packages/python && maturin develop --release
+```
 
+```bash
 # Build WASM
 cd packages/wasm && npm run build
 ```

@@ -24,6 +24,8 @@ export interface LiteParseNativeConfig {
   ocrEnabled?: boolean;
   ocrServerUrl?: string;
   ocrServerHeaders?: Record<string, string>;
+  ocrRequestFields?: Record<string, string>;
+  ocrPageRequestFields?: Record<number, Record<string, string>>;
   tessdataPath?: string;
   maxPages?: number;
   targetPages?: string;
@@ -36,6 +38,7 @@ export interface LiteParseNativeConfig {
   imageOutputDir?: string;
   extractLinks?: boolean;
   keepHeadersFooters?: boolean;
+  keepClippedText?: boolean;
   extractAnnotations?: boolean;
   extractFormFields?: boolean;
   extractStructureTree?: boolean;
@@ -50,6 +53,7 @@ export interface LiteParseNativeConfig {
   quiet?: boolean;
   numWorkers?: number;
   ocrFailureFatal?: boolean;
+  ocrDespeckleScans?: boolean;
   ocrHedgeDelaysMs?: number[];
   emitWordBoxes?: boolean;
   extractTextMetadata?: boolean;
@@ -156,6 +160,7 @@ export interface NativeParsedPage {
 export interface NativeLayoutCell {
   text: string;
   bbox?: NativeRect;
+  textItemIndices: number[];
 }
 
 export interface NativeLayoutBlock {
@@ -173,6 +178,7 @@ export interface NativeLayoutBlock {
   id?: string;
   format?: string;
   bbox?: NativeRect;
+  textItemIndices: number[];
 }
 
 export interface NativeStructureAttribute {

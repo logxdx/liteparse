@@ -11,8 +11,16 @@
 //! multi-column prose are preserved.
 
 use super::blocks::{Block, Cell};
-use super::tables::{TableRun, detect_tables};
+use super::tables::{TableRun, detect_tables, line_items_in_reading_order};
 use crate::types::{ProjectedLine, Rect};
+
+/// Source items of every line in `lines`, in reading order.
+fn union_line_items(lines: &[&ProjectedLine]) -> Vec<usize> {
+    lines
+        .iter()
+        .flat_map(|l| line_items_in_reading_order(l))
+        .collect()
+}
 
 /// Union of the boxes of every line in `lines`, or `None` when empty.
 fn union_line_rects(lines: &[&ProjectedLine]) -> Option<Rect> {
@@ -41,6 +49,10 @@ const CR_PROSE_MIN_LINES: usize = 3;
 const CR_PROSE_WIDTH_FRAC: f32 = 0.7;
 /// ...and whose summed line heights fill this fraction of the y-band.
 const CR_PROSE_VFILL: f32 = 0.55;
+/// A single leaf judged as prose (see the per-leaf gate) needs a median line of this many
+/// characters: table cells ("1,644,143", "Rooms Occupied") stay under it, a narrow newsletter
+/// column's lines ("based on generations of") run 20 and more.
+const CR_PROSE_LEAF_MIN_CHARS: f32 = 16.0;
 /// A prose side is dominated by single-cell lines: when this fraction or more
 /// of a side's lines split into ≥2 cells, it's a sliced table half (row
 /// fragments with internal column gaps), not flowing text.
@@ -251,6 +263,7 @@ fn fuse_cluster(cluster: &Cluster, path: &[u16]) -> ProjectedLine {
     let mut fused = first.clone();
     fused.rtl = rtl;
     fused.region_path = path.to_vec();
+    let mut indexed = first.spans.len() == first.span_item_indices.len();
     for m in &members[1..] {
         // Gap to the previously-fused run, measured along the reading
         // direction so the space count stays proportional in both.
@@ -264,6 +277,10 @@ fn fuse_cluster(cluster: &Cluster, path: &[u16]) -> ProjectedLine {
         fused.text.push_str(&" ".repeat(n_spaces));
         fused.text.push_str(&m.text);
         fused.spans.extend(m.spans.iter().cloned());
+        fused
+            .span_item_indices
+            .extend_from_slice(&m.span_item_indices);
+        indexed &= m.spans.len() == m.span_item_indices.len();
         let x1 = (fused.bbox.x + fused.bbox.width).max(m.bbox.x + m.bbox.width);
         let y1 = (fused.bbox.y + fused.bbox.height).max(m.bbox.y + m.bbox.height);
         fused.bbox.x = fused.bbox.x.min(m.bbox.x);
@@ -276,7 +293,16 @@ fn fuse_cluster(cluster: &Cluster, path: &[u16]) -> ProjectedLine {
         fused.all_strike &= m.all_strike;
         fused.font_size_is_estimated |= m.font_size_is_estimated;
     }
-    fused.spans.sort_by(|a, b| a.x.total_cmp(&b.x));
+    // Sort spans and their item indices together; a member without indices
+    // would misalign the rest, so then the fused line carries none.
+    let mut order: Vec<usize> = (0..fused.spans.len()).collect();
+    order.sort_by(|&a, &b| fused.spans[a].x.total_cmp(&fused.spans[b].x));
+    fused.spans = order.iter().map(|&i| fused.spans[i].clone()).collect();
+    fused.span_item_indices = if indexed {
+        order.iter().map(|&i| fused.span_item_indices[i]).collect()
+    } else {
+        Vec::new()
+    };
     fused
 }
 
@@ -361,6 +387,7 @@ fn try_two_col_direct(clusters: &[Cluster], merged_len: usize, tol: f32) -> Opti
                 _ => false,
             };
             let left_rect = union_line_rects(&cluster.left);
+            let left_items = union_line_items(&cluster.left);
             if wraps {
                 let row = rows.last_mut().unwrap();
                 if !row.0.text.is_empty() {
@@ -370,12 +397,14 @@ fn try_two_col_direct(clusters: &[Cluster], merged_len: usize, tol: f32) -> Opti
                 if let Some(r) = &left_rect {
                     Rect::extend(&mut row.0.bbox, r);
                 }
+                row.0.text_item_indices.extend(left_items);
             } else {
                 let bold = cluster.left.iter().all(|l| l.all_bold);
                 rows.push((
                     Cell {
                         text,
                         bbox: left_rect,
+                        text_item_indices: left_items,
                     },
                     Cell::default(),
                     bold,
@@ -401,6 +430,9 @@ fn try_two_col_direct(clusters: &[Cluster], merged_len: usize, tol: f32) -> Opti
             if let Some(r) = &union_line_rects(&cluster.right) {
                 Rect::extend(&mut row.1.bbox, r);
             }
+            row.1
+                .text_item_indices
+                .extend(union_line_items(&cluster.right));
         }
     }
 
@@ -460,6 +492,7 @@ fn try_two_col_direct(clusters: &[Cluster], merged_len: usize, tol: f32) -> Opti
         bbox,
         block: Block::Table { header, rows: body },
         interstitials: Vec::new(),
+        item_indices: Vec::new(),
     }])
 }
 
@@ -634,8 +667,27 @@ pub(super) fn find_cross_region_table_merge(lines: &[ProjectedLine]) -> Option<C
             }
             // Either side reading as flowing prose means the V-cut was right:
             // a body column next to a sidebar / second column must stay split.
+            // A side made of several leaves (two columns left of a third) is judged leaf by
+            // leaf as well: lumped together its lines fill only part of the side's width. A
+            // leaf holding one table column fills its own width too, so a prose leaf must also
+            // run to sentence-length lines.
+            let leaf_is_prose = || {
+                set_leaves.len() > 2
+                    && set_leaves.iter().any(|&k| {
+                        let leaf = &leaves[k];
+                        let ls: Vec<&ProjectedLine> = lines[leaf.start..leaf.end].iter().collect();
+                        let chars = median(
+                            ls.iter()
+                                .map(|l| l.text.trim().chars().count() as f32)
+                                .collect(),
+                        );
+                        chars >= CR_PROSE_LEAF_MIN_CHARS
+                            && side_looks_like_prose(&ls, leaf.x0, leaf.x1)
+                    })
+            };
             if side_looks_like_prose(&left_lines, lx0, lx1)
                 || side_looks_like_prose(&right_lines, rx0, rx1)
+                || leaf_is_prose()
             {
                 if debug {
                     eprintln!("[cross-region] reject cut@{cut_x:.1}: a side is prose-like");
@@ -924,6 +976,7 @@ mod tests {
             end: 5,
             body_start: 3,
             bbox: None,
+            item_indices: Vec::new(),
             block: Block::Table {
                 header: None,
                 rows: vec![
@@ -1071,5 +1124,80 @@ mod tests {
             ));
         }
         assert!(find_cross_region_table_merge(&lines).is_none());
+    }
+
+    #[test]
+    fn fusion_drops_indices_when_a_member_has_none() {
+        let mut lines = Vec::new();
+        for (i, label) in ["MANILA", "CEBU", "CAGAYAN DE ORO", "SUBIC"]
+            .iter()
+            .enumerate()
+        {
+            let y = 100.0 + i as f32 * 20.0;
+            let mut l = at_region(line_with_spans(&[(label, 50.0)], y, 10.0), &[0, 0]);
+            // The second label line carries no provenance.
+            l.span_item_indices = if i == 1 { Vec::new() } else { vec![i] };
+            lines.push(l);
+        }
+        for (i, (a, b)) in [
+            ("2454", "6125"),
+            ("1138", "79500"),
+            ("958", "13196"),
+            ("313", "136"),
+        ]
+        .iter()
+        .enumerate()
+        {
+            let y = 100.0 + i as f32 * 20.0;
+            let mut l = at_region(line_with_spans(&[(a, 200.0), (b, 280.0)], y, 10.0), &[0, 1]);
+            l.span_item_indices = vec![10 + 2 * i, 11 + 2 * i];
+            lines.push(l);
+        }
+        let m = find_cross_region_table_merge(&lines).expect("should merge");
+        assert_eq!(m.merged.len(), 4);
+        assert_eq!(m.merged[0].span_item_indices, vec![0, 10, 11]);
+        assert!(m.merged[1].span_item_indices.is_empty());
+        assert_eq!(m.merged[2].span_item_indices, vec![2, 14, 15]);
+    }
+
+    #[test]
+    fn fused_lines_keep_span_item_indices_aligned() {
+        // Fusion re-sorts spans by x; each must keep its own item index.
+        let mut lines = Vec::new();
+        let mut texts: Vec<String> = Vec::new();
+        for (i, label) in ["MANILA", "CEBU", "CAGAYAN DE ORO", "SUBIC"]
+            .iter()
+            .enumerate()
+        {
+            let y = 100.0 + i as f32 * 20.0;
+            let mut l = at_region(line_with_spans(&[(label, 50.0)], y, 10.0), &[0, 0]);
+            l.span_item_indices = vec![texts.len()];
+            texts.push((*label).into());
+            lines.push(l);
+        }
+        for (i, (a, b)) in [
+            ("2454", "6125"),
+            ("1138", "79500"),
+            ("958", "13196"),
+            ("313", "136"),
+        ]
+        .iter()
+        .enumerate()
+        {
+            let y = 100.0 + i as f32 * 20.0;
+            let mut l = at_region(line_with_spans(&[(a, 200.0), (b, 280.0)], y, 10.0), &[0, 1]);
+            l.span_item_indices = vec![texts.len(), texts.len() + 1];
+            texts.push((*a).into());
+            texts.push((*b).into());
+            lines.push(l);
+        }
+        let m = find_cross_region_table_merge(&lines).expect("should merge");
+        assert_eq!(m.merged.len(), 4);
+        for fused in &m.merged {
+            assert_eq!(fused.spans.len(), fused.span_item_indices.len());
+            for (span, &i) in fused.spans.iter().zip(&fused.span_item_indices) {
+                assert_eq!(texts[i], span.text);
+            }
+        }
     }
 }

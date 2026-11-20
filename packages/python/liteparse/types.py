@@ -69,6 +69,9 @@ class LayoutCell:
     """
     text: str
     bbox: Optional[AnnotationRect] = None
+    #: Indices into the page's ``text_items`` of the items the cell was read
+    #: from, in reading order. Empty for padding cells.
+    text_item_indices: List[int] = field(default_factory=list)
 
 
 @dataclass
@@ -102,6 +105,10 @@ class LayoutBlock:
     #: Region this block occupies, in the same top-left 72-DPI viewport space
     #: as ``text_items``. The union of every source line that fed the block.
     bbox: Optional[AnnotationRect] = None
+    #: Indices into the page's ``text_items`` of every item the block was read
+    #: from, sorted. For tables, the union of the cells'. Empty for ``figure``
+    #: and for a ``rule`` drawn as a stroke.
+    text_item_indices: List[int] = field(default_factory=list)
 
 
 @dataclass
@@ -457,6 +464,8 @@ class LiteParseConfig:
     ocr_enabled: bool
     ocr_server_url: Optional[str]
     ocr_server_headers: Optional[Dict[str, str]]
+    ocr_request_fields: Dict[str, str]
+    ocr_page_request_fields: Dict[int, Dict[str, str]]
     tessdata_path: Optional[str]
     max_pages: int
     target_pages: Optional[str]
@@ -476,6 +485,7 @@ class LiteParseConfig:
     extract_structure_tree: bool
     extract_blocks: bool
     ocr_failure_fatal: bool
+    ocr_despeckle_scans: bool
     ocr_hedge_delays_ms: List[int]
     emit_word_boxes: bool
     #: ``(top, right, bottom, left)`` crop fractions, or ``None`` when the whole
@@ -490,6 +500,9 @@ class LiteParseConfig:
     #: Keep running headers/footers in markdown output instead of stripping
     #: repeated page-band lines and page chrome.
     keep_headers_footers: bool = False
+    #: Keep text hidden by rectangular clips (e.g. overflow from a
+    #: fixed-height table cell) instead of dropping it.
+    keep_clipped_text: bool = False
     extract_images: bool = False
     extract_vector_graphics: bool = False
     extract_xfa_packets: bool = False

@@ -101,6 +101,7 @@ All optional, camelCase:
 | `ocrLanguage` | `string` | `"eng"` | Language code passed to the OCR engine |
 | `ocrEnabled` | `boolean` | `false` | Run OCR on text-sparse pages. Off by default in WASM — there is no built-in engine, so this does nothing without `ocrEngine` |
 | `ocrEngine` | `object` | — | Custom JS-side OCR engine (see above) |
+| `onOcrPage` | `(page: ParsedPage) => void` | — | Early OCR text and boxes during `parse()`; calls can arrive out of page order |
 | `numWorkers` | `number` | `1` | Maximum concurrent OCR calls |
 | `ocrFailureFatal` | `boolean` | `true` | When `false`, OCR failures return partial results instead of throwing |
 | `ocrHedgeDelaysMs` | `number[]` | `[]` | Request-hedging schedule for a remote `ocrEngine` |
@@ -117,6 +118,7 @@ All optional, camelCase:
 | `imageMode` | `"off" \| "placeholder" \| "embed"` | `"placeholder"` | How image references appear in markdown. Also accepts `"none"` for `off` |
 | `extractLinks` | `boolean` | `true` | Render `[text](url)` in markdown |
 | `keepHeadersFooters` | `boolean` | `false` | Keep running header/footer chrome in markdown |
+| `keepClippedText` | `boolean` | `false` | Keep text hidden by clips (e.g. overflow from fixed-height table cells) |
 | `emitWordBoxes` | `boolean` | `false` | Per-word sub-boxes on each text item |
 
 The [extraction options](/liteparse/guides/extraction/) — `extractImages`, `extractVectorGraphics`, `extractAnnotations`, `extractFormFields`, `extractStructureTree`, `extractContentBounds`, `extractXfaPackets`, `extractTextMetadata`, `includeComplexity`, and `renderFormFields` — are all available here too, with the same camelCase names and the same `false` defaults.

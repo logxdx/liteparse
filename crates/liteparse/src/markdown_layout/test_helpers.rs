@@ -23,6 +23,7 @@ pub(crate) fn line(text: &str, x: f32, y: f32, h: f32, size: f32) -> ProjectedLi
         all_mono: false,
         all_strike: false,
         spans: vec![TextItem::default()],
+        span_item_indices: vec![0],
         region_path: Vec::new(),
         mcid: None,
         in_figure: false,
@@ -52,6 +53,7 @@ pub(crate) fn page(lines: Vec<ProjectedLine>) -> ParsedPage {
         form_fields: None,
         structure_tree: None,
         blocks: None,
+        ocr_deskew: None,
     }
 }
 
@@ -105,6 +107,7 @@ pub(crate) fn line_with_spans(cells: &[(&str, f32)], y: f32, size: f32) -> Proje
         all_italic: false,
         all_mono: false,
         all_strike: false,
+        span_item_indices: (0..spans.len()).collect(),
         spans,
         region_path: Vec::new(),
         mcid: None,
@@ -157,6 +160,7 @@ pub(crate) fn styled_line(spans: &[(&str, f32, Option<&str>)], y: f32, size: f32
         all_italic: false,
         all_mono: false,
         all_strike: false,
+        span_item_indices: (0..items.len()).collect(),
         spans: items,
         region_path: Vec::new(),
         mcid: None,
@@ -213,6 +217,7 @@ pub(crate) fn header_footer_page(n: usize, header: &str, footer: &str, body: &st
         form_fields: None,
         structure_tree: None,
         blocks: None,
+        ocr_deskew: None,
     }
 }
 

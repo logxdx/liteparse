@@ -69,6 +69,9 @@ pub struct LiteParseConfig {
     /// Keep running headers/footers in markdown output instead of stripping
     /// repeated page-band lines and page chrome. Default false.
     keep_headers_footers: Option<bool>,
+    /// Keep text hidden by rectangular clips (e.g. overflow from a
+    /// fixed-height table cell) instead of dropping it. Default false.
+    keep_clipped_text: Option<bool>,
     extract_annotations: Option<bool>,
     extract_form_fields: Option<bool>,
     extract_structure_tree: Option<bool>,
@@ -209,6 +212,9 @@ impl LiteParseConfig {
         if let Some(v) = self.keep_headers_footers {
             cfg.keep_headers_footers = v;
         }
+        if let Some(v) = self.keep_clipped_text {
+            cfg.keep_clipped_text = v;
+        }
         if let Some(v) = self.extract_annotations {
             cfg.extract_annotations = v;
         }
@@ -317,6 +323,7 @@ impl LiteParseConfig {
             extract_images: Some(cfg.extract_images),
             extract_links: Some(cfg.extract_links),
             keep_headers_footers: Some(cfg.keep_headers_footers),
+            keep_clipped_text: Some(cfg.keep_clipped_text),
             extract_annotations: Some(cfg.extract_annotations),
             extract_form_fields: Some(cfg.extract_form_fields),
             extract_structure_tree: Some(cfg.extract_structure_tree),
@@ -559,6 +566,9 @@ pub struct LayoutCell {
     pub text: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bbox: Option<AnnotationRect>,
+    /// Indices into the page's `textItems` of the items the cell was read
+    /// from, in reading order. Empty for padding cells.
+    pub text_item_indices: Vec<usize>,
 }
 
 /// A classified block plus where it sits on the page.
@@ -616,6 +626,10 @@ pub struct LayoutBlock {
     /// geometry behind it.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bbox: Option<AnnotationRect>,
+    /// Indices into the page's `textItems` of every item the block was read
+    /// from, sorted. For tables, the union of the cells'. Empty for `figure`
+    /// and for a `rule` drawn as a stroke.
+    pub text_item_indices: Vec<usize>,
 }
 
 fn to_annotation_rect(rect: &liteparse::types::Rect) -> AnnotationRect {
@@ -632,6 +646,7 @@ impl LayoutCell {
         Self {
             text: cell.text.clone(),
             bbox: cell.bbox.as_ref().map(to_annotation_rect),
+            text_item_indices: cell.text_item_indices.clone(),
         }
     }
 }
@@ -659,6 +674,7 @@ impl LayoutBlock {
             id: block.id.clone(),
             format: block.format.clone(),
             bbox: block.bbox.as_ref().map(to_annotation_rect),
+            text_item_indices: block.text_item_indices.clone(),
         }
     }
 }
@@ -1064,6 +1080,8 @@ impl OcrEngine for JsOcrEngine {
                     bbox: r.bbox,
                     confidence: r.confidence,
                     polygon: r.polygon,
+                    words: Vec::new(),
+                    rotation: None,
                 })
                 .collect())
         })
@@ -1097,6 +1115,10 @@ export interface OcrEngine {
 
 export interface LiteParseInit extends LiteParseConfig {
   ocrEngine?: OcrEngine;
+  /** Synchronous OCR preview; calls can arrive out of page order.
+   * No final blocks, complexity, or markdown. A thrown error rejects parse().
+   * Replace previews with the final result. Return values are ignored. */
+  onOcrPage?: (page: ParsedPage) => void;
 }
 "#;
 
@@ -1110,6 +1132,7 @@ extern "C" {
 pub struct LiteParse {
     inner: CoreLiteParse,
     config: CoreConfig,
+    on_ocr_page: Option<Function>,
 }
 
 #[wasm_bindgen]
@@ -1119,6 +1142,21 @@ impl LiteParse {
     #[wasm_bindgen(constructor)]
     pub fn new(config: LiteParseInit) -> Result<LiteParse, JsError> {
         let config: JsValue = config.into();
+        let on_ocr_page = if config.is_object() {
+            let callback = Reflect::get(&config, &JsValue::from_str("onOcrPage"))
+                .map_err(|e| JsError::new(&format!("onOcrPage lookup failed: {e:?}")))?;
+            if callback.is_undefined() || callback.is_null() {
+                None
+            } else {
+                Some(
+                    callback
+                        .dyn_into::<Function>()
+                        .map_err(|_| JsError::new("onOcrPage must be a function"))?,
+                )
+            }
+        } else {
+            None
+        };
         let ocr_engine_js = if config.is_object() {
             Reflect::get(&config, &JsValue::from_str("ocrEngine"))
                 .ok()
@@ -1141,6 +1179,7 @@ impl LiteParse {
         Ok(LiteParse {
             inner: parser,
             config: core_cfg,
+            on_ocr_page,
         })
     }
 
@@ -1152,11 +1191,29 @@ impl LiteParse {
 
     /// Parse PDF bytes. Returns `Promise<ParseResult>`.
     pub async fn parse(&self, data: Vec<u8>) -> Result<ParseResult, JsError> {
-        let result = self
-            .inner
-            .parse_input(PdfInput::Bytes(data))
-            .await
-            .map_err(|e| JsError::new(&format!("parse failed: {}", e)))?;
+        let input = PdfInput::Bytes(data);
+        let result = if let Some(callback) = &self.on_ocr_page {
+            let on_page = |page: &liteparse::types::ParsedPage| {
+                let pages = to_js_pages(
+                    std::slice::from_ref(page),
+                    self.config.extract_text_metadata,
+                    self.config.output_word_boxes(),
+                );
+                let value = serde_wasm_bindgen::to_value(&pages[0]).map_err(|e| {
+                    liteparse::LiteParseError::Other(format!("onOcrPage conversion failed: {e}"))
+                })?;
+                callback.call1(&JsValue::NULL, &value).map_err(|e| {
+                    liteparse::LiteParseError::Other(format!("onOcrPage failed: {e:?}"))
+                })?;
+                Ok(())
+            };
+            self.inner
+                .parse_input_with_ocr_page_callback(input, &on_page)
+                .await
+        } else {
+            self.inner.parse_input(input).await
+        }
+        .map_err(|e| JsError::new(&format!("parse failed: {e}")))?;
 
         Ok(to_js_result(
             &result,
@@ -1166,17 +1223,13 @@ impl LiteParse {
     }
 }
 
-/// Convert a core [`CoreParseResult`] into the wasm-bindgen view.
-///
-/// Shared by `parse()` and `ParseSession::nextBatch()` so a batch is mapped
-/// exactly the same way a whole-document result is.
-fn to_js_result(
-    result: &liteparse::ParseResult,
+/// Shared by previews and final results so output options stay identical.
+fn to_js_pages(
+    core_pages: &[liteparse::types::ParsedPage],
     extract_text_metadata: bool,
     word_boxes: bool,
-) -> ParseResult {
-    let pages: Vec<ParsedPage> = result
-        .pages
+) -> Vec<ParsedPage> {
+    core_pages
         .iter()
         .map(|p| ParsedPage {
             page_num: p.page_number,
@@ -1292,7 +1345,19 @@ fn to_js_result(
                 .as_ref()
                 .map(|blocks| blocks.iter().map(LayoutBlock::from_rust).collect()),
         })
-        .collect();
+        .collect()
+}
+
+/// Convert a core [`CoreParseResult`] into the wasm-bindgen view.
+///
+/// Shared by `parse()` and `ParseSession::nextBatch()` so a batch is mapped
+/// exactly the same way a whole-document result is.
+fn to_js_result(
+    result: &liteparse::ParseResult,
+    extract_text_metadata: bool,
+    word_boxes: bool,
+) -> ParseResult {
+    let pages = to_js_pages(&result.pages, extract_text_metadata, word_boxes);
 
     let images: Vec<ExtractedImage> = result
         .images

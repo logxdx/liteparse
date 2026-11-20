@@ -51,6 +51,7 @@ fn matches_python_reference() {
     let options = OcrOptions {
         language: String::new(),
         dpi: 200.0,
+        request_fields: Default::default(),
     };
 
     let mut pages: Vec<PathBuf> = std::fs::read_dir(&images)

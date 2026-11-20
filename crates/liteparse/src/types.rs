@@ -110,6 +110,11 @@ pub struct TextItem {
     /// represented by a real space glyph in the PDF content stream.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub trailing_space_generated: bool,
+    /// A space (a glyph, or one PDFium synthesized from the glyph gap) followed
+    /// the last glyph of this left-to-right item. Projection keeps it when it
+    /// rejoins the item with an abutting neighbour.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub followed_by_space: bool,
     /// OCR confidence score (0.0–1.0). None for native PDF text.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub confidence: Option<f32>,
@@ -122,6 +127,28 @@ pub struct TextItem {
     /// markdown emitter to wrap the text in `~~…~~`.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub strike: bool,
+    /// Whether a thin horizontal stroke/rect runs just under this item's
+    /// baseline and spans its text (an underline). Populated in `extract.rs`;
+    /// the markdown emitter wraps the text in `<u>…</u>`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub underline: bool,
+    /// Raised (superscript) or lowered (subscript) small text relative to its
+    /// line, e.g. a footnote marker. Set in projection; the markdown emitter
+    /// wraps it in `<sup>…</sup>` / `<sub>…</sub>`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub sup: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub sub: bool,
+    /// The pieces an item was merged from, when their emphasis differs (bold / italic / struck /
+    /// monospace / underline / script): the markdown renderer styles each piece, while lines,
+    /// tables and blocks see the one merged item. Empty otherwise. Internal.
+    #[serde(skip)]
+    pub style_pieces: Vec<TextItem>,
+    /// A super/subscript run split from its line at a size step: its own glyph box `(y, height)`.
+    /// `y` / `height` then hold the host text's band, so lines and tables group the run with its
+    /// host as before the split; script detection reads this box. Internal.
+    #[serde(skip)]
+    pub script_geom: Option<(f32, f32)>,
     /// Whether this item is LaTeX rebuilt from TeX math fonts (`$…$`).
     /// Populated in `extract.rs`.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
@@ -215,12 +242,12 @@ pub struct WordBox {
 /// put a process or activity boundary between any two stages. The public JSON
 /// output does not use this shape (see `output/json.rs`).
 #[doc(hidden)]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Page {
     pub page_number: usize,
     /// Tilt (degrees) the OCR merge removed from this page's OCR items: on a skewed scan the
     /// items are rotated upright about the page centre so lines group into rows correctly,
-    /// and their output boxes are rotated back after layout (`ParsedPage::ocr_deskew`).
+    /// and their output boxes are rotated back after layout (see `ParsedPage::ocr_deskew`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ocr_deskew: Option<f32>,
     /// The document's `/PageLabels` entry for this page ("iv", "A-1"), when
@@ -459,8 +486,8 @@ pub struct ParsedPage {
     /// the public JSON/text outputs.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub projected_lines: Vec<ProjectedLine>,
-    /// Root of the XY-cut region tree for this page. Leaves correspond to the
-    /// `region_path` on each `ProjectedLine`. Internal-only.
+    /// Body XY-cut region tree. Isolated numeric footer lines are detached
+    /// from this tree; other lines use its leaves as their `region_path`. Internal-only.
     #[serde(default)]
     pub regions: Region,
     /// Vector graphics on the page (decomposed paths) used by the markdown
@@ -520,6 +547,13 @@ pub struct ParsedPage {
     /// without the font metadata the classifier needs).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub blocks: Option<Vec<crate::layout::LayoutBlock>>,
+    /// Tilt (degrees) the OCR merge removed from this page's OCR items
+    /// (`Page::ocr_deskew`), carried through projection. While set, the OCR item,
+    /// word, block and table-cell boxes are still in the upright frame;
+    /// [`stages::rotate_back_ocr_deskew`](crate::stages::rotate_back_ocr_deskew)
+    /// moves them back onto the image and clears it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ocr_deskew: Option<f32>,
 }
 
 /// One embedded raster image on a page. `id` is a stable, page-scoped slug
@@ -727,6 +761,11 @@ pub struct ProjectedLine {
     pub all_mono: bool,
     pub all_strike: bool,
     pub spans: Vec<TextItem>,
+    /// Index of each span's source item in the page's `text_items`, aligned
+    /// with `spans`. Anything that reorders or extends `spans` must do the
+    /// same here.
+    #[serde(default)]
+    pub span_item_indices: Vec<usize>,
     /// True when the line's base direction is right-to-left (strong RTL
     /// characters outnumber strong LTR ones). `spans` is always in x-ascending
     /// order; consumers that rebuild the line's *text* must walk it in reverse

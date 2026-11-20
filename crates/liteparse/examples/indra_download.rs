@@ -22,6 +22,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let options = OcrOptions {
             language: String::new(),
             dpi: 200.0,
+            request_fields: Default::default(),
         };
         let lines = engine
             .recognize(img.as_raw(), w, h, &options)

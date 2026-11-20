@@ -3,10 +3,11 @@
 //! [`LiteParse::parse`](crate::LiteParse::parse) is a fixed sequence of
 //! stages: open → orientation → extract → complexity → OCR render →
 //! recognition → OCR merge → content filters → grid projection → block
-//! classification → markdown rendering. This module exposes each stage as a
-//! function over serializable types so a caller can run the same sequence
-//! itself and insert its own inputs between stages — its own OCR engine, a
-//! page selection, extra blocks — or put a process boundary between any two.
+//! classification → markdown rendering → deskew rotate-back. This module
+//! exposes each stage as a function over serializable types so a caller can
+//! run the same sequence itself and insert its own inputs between stages —
+//! its own OCR engine, a page selection, extra blocks — or put a process
+//! boundary between any two.
 //!
 //! Stages split into two kinds. **pdfium-bound** stages take an open
 //! [`Document`] and must run while the [`Library`] that opened it is alive
@@ -24,7 +25,16 @@
 //! | content filters | [`apply_content_filters`] | pure |
 //! | projection | [`project`] | pure |
 //! | markdown | [`document_signals`] → [`extract_blocks`] → [`render_page_markdown`] | pure |
+//! | deskew rotate-back | [`rotate_back_ocr_deskew`] | pure |
 //! | screenshots | [`screenshots`] | pdfium |
+//!
+//! A caller sequencing these stages itself must finish with
+//! [`rotate_back_ocr_deskew`]: after projection, [`layout_complexity`],
+//! [`layout_blocks`] and [`render_page_markdown`] (and
+//! [`canonicalize_image_refs`] if used), as the last stage before reading
+//! boxes. [`merge_ocr`] deskews tilted scans, and without this stage the OCR
+//! item, word, block and cell boxes of those pages stay in the upright frame,
+//! off the image by the page's tilt.
 //!
 //! [`Document`] and [`Library`] are the `pdfium` crate's types re-exported
 //! verbatim, so that crate's handle API is part of this module's contract.
@@ -43,16 +53,16 @@ use crate::ocr_merge;
 use crate::projection;
 use crate::render;
 use crate::types::{
-    DocumentMetadata, ExtractedImage, OutlineTarget, Page, ParsedPage, PdfInput, XfaPacket,
+    DocumentMetadata, ExtractedImage, OutlineTarget, Page, ParsedPage, PdfInput, Rect, XfaPacket,
 };
 
 pub use crate::extract::{ExtractedPages, ExtractionOutputOptions};
 pub use crate::layout::{LayoutBlock, LayoutCell};
 pub use crate::markdown_layout::{Block, Cell, PositionedBlock, SpanCell, render_blocks};
-pub use crate::ocr::OcrResult;
+pub use crate::ocr::{EncodedOcrImage, OcrImage, OcrImageFormat, OcrResult};
 pub use crate::ocr_merge::{
-    ComplexityReason, LayoutComplexityReason, LayoutComplexityStats, OcrRaster, OcrRenderOptions,
-    PageComplexityStats, PageOcrOutcome,
+    ComplexityReason, LayoutComplexityReason, LayoutComplexityStats, OcrMergeState, OcrRaster,
+    OcrRenderOptions, PageComplexityStats, PageOcrOutcome,
 };
 pub use crate::parser::ScreenshotResult;
 /// The PDFium handle types the pdfium-bound stages take. Re-exported so a
@@ -217,7 +227,10 @@ pub fn layout_complexity(page: &ParsedPage) -> LayoutComplexityStats {
 /// Rasterize the pages in `pages[start..]` that need OCR (or that
 /// `options.selection` names), stopping after `options.max_rasters`. Returns
 /// the rasters and the index to resume from, so a long document runs in
-/// bounded rounds. Drop the [`Document`] before awaiting recognition.
+/// bounded rounds. `options.page_images` supplies full-page images that bypass
+/// rendering for those pages; missing entries render normally. OCR selection,
+/// native-text masking and pixel-to-page scaling still apply. Drop the
+/// [`Document`] before awaiting recognition.
 pub fn render_for_ocr(
     document: &Document,
     pages: &[Page],
@@ -333,6 +346,7 @@ impl OcrWindow {
 /// text, filter engine artifacts, append the surviving results as `OCR`
 /// text items in viewport points. Errors only when every outcome failed and
 /// one of the failed pages had no usable native text (`ocr_failure_fatal`).
+/// Use [`OcrMergeState`] for incremental merging with one final failure check.
 ///
 /// Pass `LiteParseConfig::effective_emit_word_boxes` for `emit_word_boxes`:
 /// each engine result is one word, so this is the only place the OCR path can
@@ -373,6 +387,11 @@ pub fn apply_content_filters(pages: &mut [Page], filters: &ContentFilters<'_>) {
 /// per page, so it can run over any page subset.
 pub fn project(pages: Vec<Page>) -> Vec<ParsedPage> {
     projection::project_pages_to_grid(pages)
+}
+
+/// [`project`] for markdown output: emphasis runs within a line stay separate items.
+pub fn project_for_markdown(pages: Vec<Page>) -> Vec<ParsedPage> {
+    projection::project_pages_for_markdown(pages)
 }
 
 // ── Markdown ───────────────────────────────────────────────────────────
@@ -481,6 +500,8 @@ pub fn extract_blocks(
         blocks.retain(|b| !matches!(b.block, Block::HorizontalRule));
     }
     dedupe_rules(&mut blocks);
+    let blocks = markdown_layout::split_repeated_header_tables(blocks);
+    let blocks = markdown_layout::rejoin_paragraphs_around_figures(blocks);
     Some(markdown_layout::splice_soft_hyphens(blocks))
 }
 
@@ -562,7 +583,86 @@ fn dedupe_rules(blocks: &mut Vec<PositionedBlock>) {
     while matches!(blocks.last().map(|b| &b.block), Some(HorizontalRule)) {
         blocks.pop();
     }
-    blocks.dedup_by(|a, b| matches!((&a.block, &b.block), (HorizontalRule, HorizontalRule)));
+    blocks.dedup_by(|a, b| {
+        let both_rules = matches!((&a.block, &b.block), (HorizontalRule, HorizontalRule));
+        if both_rules {
+            // The survivor stands for the run, so it keeps the dropped
+            // rule's source items (a text divider folded into a stroke).
+            b.text_item_indices.append(&mut a.text_item_indices);
+        }
+        both_rules
+    });
+}
+
+// ── Deskew rotate-back ─────────────────────────────────────────────────
+
+/// Move the boxes of every deskewed page back onto the page image. Pure and
+/// per page.
+///
+/// On a skewed scan [`merge_ocr`] rotates the OCR items upright about the
+/// page centre (`Page::ocr_deskew`) so lines group into rows. Projection,
+/// block classification and markdown all run on those upright items, and
+/// [`project`] carries the angle onto [`ParsedPage::ocr_deskew`]. This stage
+/// undoes the rotation on the output geometry: each OCR item box and every
+/// layout block and table-cell box becomes the axis-aligned bound of itself
+/// rotated back about the page centre. A word box, which the merge moved by
+/// its centre at its measured size, moves its centre back and keeps its size,
+/// so it comes back as the rect the OCR engine measured. Native items were
+/// never rotated and stay put. Text and markdown do not change.
+///
+/// Run it last, after [`layout_blocks`] (whose boxes it moves) and after
+/// [`layout_complexity`] (which measures the upright frame). It clears
+/// `ocr_deskew` on each page it moves, so a second call is a no-op. Pages
+/// without a deskew are untouched.
+pub fn rotate_back_ocr_deskew(pages: &mut [ParsedPage]) {
+    for page in pages {
+        if let Some(deg) = page.ocr_deskew.take() {
+            rotate_back_page(page, deg);
+        }
+    }
+}
+
+fn rotate_back_page(page: &mut ParsedPage, deg: f32) {
+    let (cx, cy) = (page.page_width / 2.0, page.page_height / 2.0);
+    let back = |x: f32, y: f32, w: f32, h: f32| -> (f32, f32, f32, f32) {
+        let pts = [(x, y), (x + w, y), (x + w, y + h), (x, y + h)]
+            .map(|(px, py)| ocr_merge::rotate_about(px, py, cx, cy, deg));
+        let x0 = pts.iter().map(|p| p.0).fold(f32::INFINITY, f32::min);
+        let x1 = pts.iter().map(|p| p.0).fold(f32::NEG_INFINITY, f32::max);
+        let y0 = pts.iter().map(|p| p.1).fold(f32::INFINITY, f32::min);
+        let y1 = pts.iter().map(|p| p.1).fold(f32::NEG_INFINITY, f32::max);
+        (x0, y0, x1 - x0, y1 - y0)
+    };
+    let rect = |r: &mut Rect| {
+        (r.x, r.y, r.width, r.height) = back(r.x, r.y, r.width, r.height);
+    };
+    for item in page
+        .text_items
+        .iter_mut()
+        .filter(|i| i.confidence.is_some())
+    {
+        (item.x, item.y, item.width, item.height) = back(item.x, item.y, item.width, item.height);
+        for w in &mut item.words {
+            let (mx, my) =
+                ocr_merge::rotate_about(w.x + w.width / 2.0, w.y + w.height / 2.0, cx, cy, deg);
+            (w.x, w.y) = (mx - w.width / 2.0, my - w.height / 2.0);
+        }
+    }
+    for block in page.blocks.iter_mut().flatten() {
+        if let Some(r) = block.bbox.as_mut() {
+            rect(r);
+        }
+        for cell in block
+            .header
+            .iter_mut()
+            .flatten()
+            .chain(block.rows.iter_mut().flatten().flatten())
+        {
+            if let Some(r) = cell.bbox.as_mut() {
+                rect(r);
+            }
+        }
+    }
 }
 
 // ── Screenshots ────────────────────────────────────────────────────────
@@ -645,6 +745,7 @@ mod tests {
             all_mono: false,
             all_strike: false,
             spans: vec![TextItem::default()],
+            span_item_indices: vec![0],
             region_path: Vec::new(),
             mcid: None,
             in_figure: false,
@@ -674,6 +775,7 @@ mod tests {
             form_fields: None,
             structure_tree: None,
             blocks: None,
+            ocr_deskew: None,
         }
     }
 
@@ -704,6 +806,87 @@ mod tests {
         assert_eq!(render_document(&[]), "");
     }
 
+    /// Markdown of a one-page scan: three horizontal body lines, then the OCR
+    /// items `row` as `(text, x, y, rotation)`. A sideways item's box stands
+    /// upright: 10pt wide and 5pt tall per character.
+    fn ocr_markdown(row: &[(&str, f32, f32, f32)]) -> String {
+        let body = [
+            "Register of changes for the period ending May",
+            "Prepared by the records office for its review",
+            "All amounts are in dollars before any tax is due",
+        ];
+        let text_items = body
+            .iter()
+            .zip([100.0, 120.0, 140.0])
+            .map(|(&text, y)| (text, 50.0, y, 0.0))
+            .chain(row.iter().copied())
+            .map(|(text, x, y, rotation)| {
+                let length = text.chars().count() as f32 * 5.0;
+                let (width, height) = if rotation == 0.0 {
+                    (length, 10.0)
+                } else {
+                    (10.0, length)
+                };
+                TextItem {
+                    text: text.into(),
+                    x,
+                    y,
+                    width,
+                    height,
+                    rotation,
+                    font_size: Some(10.0),
+                    font_name: Some("OCR".into()),
+                    confidence: Some(0.9),
+                    ..Default::default()
+                }
+            })
+            .collect();
+        let page = crate::types::Page {
+            page_number: 1,
+            ocr_deskew: None,
+            page_label: None,
+            page_width: 612.0,
+            page_height: 792.0,
+            content_bounds: None,
+            text_items,
+            graphics: vec![],
+            vector_graphics: None,
+            struct_nodes: vec![],
+            image_refs: vec![],
+            annotations: None,
+            form_fields: None,
+            structure_tree: None,
+        };
+        render_document(&project_for_markdown(vec![page]))
+    }
+
+    #[test]
+    fn a_row_with_one_sideways_glyph_stays_in_the_markdown() {
+        // OCR can read a row's index digit as one glyph at 90°. The glyph sits just
+        // under the line above, so projection keeps it on its row. The row is still
+        // horizontal text: markdown keeps it and leaves the glyph out.
+        let md = ocr_markdown(&[
+            ("L", 50.0, 155.0, 90.0),
+            ("Current", 80.0, 155.0, 0.0),
+            ("A-001", 150.0, 155.0, 0.0),
+            ("Smith", 230.0, 155.0, 0.0),
+        ]);
+        assert!(md.contains("Current A-001 Smith"), "{md}");
+        assert!(!md.contains('L'), "{md}");
+    }
+
+    #[test]
+    fn a_line_made_mostly_of_sideways_text_is_skipped() {
+        // A margin stamp read at 90° with one fragment read upright is still margin
+        // furniture: the whole line stays out of the markdown.
+        let md = ocr_markdown(&[
+            ("arXiv:2401.00001v1", 50.0, 360.0, 90.0),
+            ("Q7", 52.0, 400.0, 0.0),
+        ]);
+        assert!(!md.contains("arXiv"), "{md}");
+        assert!(!md.contains("Q7"), "{md}");
+    }
+
     #[test]
     fn dedupe_rules_drops_edges_and_collapses_runs() {
         use Block::{HorizontalRule, Paragraph};
@@ -723,6 +906,7 @@ mod tests {
         .into_iter()
         .map(PositionedBlock::unlocated)
         .collect();
+        blocks[3].text_item_indices = vec![4, 7];
         dedupe_rules(&mut blocks);
         let kinds: Vec<bool> = blocks
             .iter()
@@ -730,6 +914,93 @@ mod tests {
             .collect();
         // Leading + trailing rules gone; the doubled interior run collapsed to one.
         assert_eq!(kinds, vec![false, true, false]);
+        // The survivor keeps the dropped rule's items.
+        assert_eq!(blocks[1].text_item_indices, vec![4, 7]);
+    }
+
+    #[test]
+    fn stages_link_blocks_back_to_text_items() {
+        let mut text_items = Vec::new();
+        for (i, (text, y, h)) in [
+            ("Heading For The Page", 50.0, 18.0),
+            ("First line of body prose here.", 80.0, 10.0),
+            ("second line of body prose here.", 92.0, 10.0),
+            ("Third line of body prose here.", 104.0, 10.0),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            text_items.push(TextItem {
+                text: text.into(),
+                x: 50.0,
+                y,
+                width: 200.0,
+                height: h,
+                font_size: Some(h),
+                font_name: Some("Arial".into()),
+                ..Default::default()
+            });
+            assert_eq!(text_items.len(), i + 1);
+        }
+        let page = crate::types::Page {
+            page_number: 1,
+            page_label: None,
+            page_width: 612.0,
+            page_height: 792.0,
+            content_bounds: None,
+            text_items,
+            graphics: Vec::new(),
+            vector_graphics: None,
+            struct_nodes: Vec::new(),
+            image_refs: Vec::new(),
+            annotations: None,
+            form_fields: None,
+            structure_tree: None,
+            ocr_deskew: None,
+        };
+        let pages = project(vec![page]);
+        let signals = document_signals(&pages, false);
+        let options = BlockOptions {
+            outline: &[],
+            image_mode: ImageMode::Placeholder,
+            keep_headers_footers: false,
+        };
+        let blocks = extract_blocks(&pages[0], &signals, &options).expect("page has lines");
+        let layout = layout_blocks(&pages[0], &blocks);
+        assert_eq!(layout.len(), 2);
+        assert_eq!(layout[0].kind, "heading");
+        assert_eq!(layout[0].text_item_indices, vec![0]);
+        assert_eq!(layout[1].kind, "paragraph");
+        assert_eq!(layout[1].text_item_indices, vec![1, 2, 3]);
+        // Indices address the projected page's `text_items`.
+        assert_eq!(pages[0].text_items[0].text, "Heading For The Page");
+    }
+
+    #[test]
+    fn layout_blocks_keep_caller_supplied_items() {
+        let cell = |text: &str, items: Vec<usize>| SpanCell {
+            text_item_indices: items,
+            ..SpanCell::new(text)
+        };
+        let block = PositionedBlock::new(
+            Block::MergedTable {
+                rows: vec![
+                    vec![SpanCell::spanning("wide", 2, 1)],
+                    vec![cell("a", vec![0]), cell("b", vec![1, 1])],
+                ],
+                header_rows: 1,
+            },
+            None,
+        );
+        let page = ParsedPage {
+            text_items: vec![TextItem::default(); 2],
+            ..page_with(1, vec![])
+        };
+        let out = layout_blocks(&page, &[block]);
+        assert_eq!(out[0].text_item_indices, vec![0, 1]);
+        let rows = out[0].rows.as_ref().unwrap();
+        assert!(rows[0][0].text_item_indices.is_empty());
+        assert_eq!(rows[1][1].text_item_indices, vec![1]);
     }
 
     #[test]

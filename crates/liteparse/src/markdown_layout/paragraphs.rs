@@ -306,6 +306,8 @@ pub(super) struct ParaAccum {
     /// Union of every line folded into this paragraph, so the emitted block
     /// reports the whole band it covers rather than its last line.
     pub(super) bbox: Option<crate::types::Rect>,
+    /// Source items of every line folded in, in reading order.
+    pub(super) item_indices: Vec<usize>,
 }
 
 /// Append `next_line` to a paragraph accumulator. Maintains both the `raw` and
@@ -324,6 +326,9 @@ pub(super) fn append_to_paragraph(accum: &mut ParaAccum, next_line: &ProjectedLi
     let next_uniform: Option<SpanStyle> = line_uniform_style(next_line).filter(|s| !s.strike);
 
     crate::types::Rect::extend(&mut accum.bbox, &next_line.bbox);
+    accum
+        .item_indices
+        .extend_from_slice(&next_line.span_item_indices);
 
     if accum.raw.is_empty() {
         accum.raw.push_str(&next_raw);
@@ -339,7 +344,9 @@ pub(super) fn append_to_paragraph(accum: &mut ParaAccum, next_line: &ProjectedLi
     // won't strip and falls through to a space join — exactly the prior
     // behavior, now via one helper.
     dehyphenate_join(&mut accum.raw, &next_raw, &next_raw);
-    dehyphenate_join(&mut accum.inline, &next_raw, &next_inline);
+    // the inline side first rejoins an emphasis run split at the line break ("*… Man-*" +
+    // "*ager …*"), so the hyphen is at its seam again
+    super::inline::append_inline_continuation(&mut accum.inline, &next_raw, &next_inline);
 
     // Maintain the running uniform-style flag.
     accum.uniform = match (accum.uniform, next_uniform) {

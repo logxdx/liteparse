@@ -15,6 +15,17 @@ export interface JsLiteParseConfig {
    * (e.g. `{ Authorization: "Bearer <token>" }`).
    */
   ocrServerHeaders?: Record<string, string>
+  /**
+   * Form fields sent as-is with every request to `ocrServerUrl`, next to
+   * `file` and `language` (a `language` entry replaces it). LiteParse adds
+   * no other field.
+   */
+  ocrRequestFields?: Record<string, string>
+  /**
+   * Per-page form fields, keyed by 1-based page number, merged over
+   * `ocrRequestFields` for that page's request.
+   */
+  ocrPageRequestFields?: Record<string, Record<string, string>>
   /** Path to tessdata directory for Tesseract. */
   tessdataPath?: string
   /** Maximum number of pages to parse. */
@@ -66,6 +77,11 @@ export interface JsLiteParseConfig {
    * repeated page-band lines and page chrome (default false).
    */
   keepHeadersFooters?: boolean
+  /**
+   * Keep text hidden by rectangular clips (e.g. overflow from a
+   * fixed-height table cell) instead of dropping it. Default false.
+   */
+  keepClippedText?: boolean
   /** Extract all PDF annotations as page-scoped structured data. */
   extractAnnotations?: boolean
   /**
@@ -110,6 +126,11 @@ export interface JsLiteParseConfig {
    * results when OCR is unavailable, instead of rejecting.
    */
   ocrFailureFatal?: boolean
+  /**
+   * Remove dot-screen specks from OCR rasters of speckled 1-bit full-page
+   * scans rendered at 200 dpi or more. Default true.
+   */
+  ocrDespeckleScans?: boolean
   /**
    * OCR request-hedging schedule (ms). Empty/unset = no hedging. Multiple
    * delays (e.g. `[0, 5000, 10000]`) fire duplicate requests per attempt and
@@ -376,6 +397,11 @@ export interface JsFormField {
 export interface JsLayoutCell {
   text: string
   bbox?: JsAnnotationRect
+  /**
+   * Indices into the page's `textItems` of the items the cell was read
+   * from, in reading order. Empty for padding cells.
+   */
+  textItemIndices: Array<number>
 }
 /**
  * A classified block plus where it sits on the page. Flat by design — `kind`
@@ -427,6 +453,12 @@ export interface JsLayoutBlock {
    * `textItems`. Absent when the block has no page geometry behind it.
    */
   bbox?: JsAnnotationRect
+  /**
+   * Indices into the page's `textItems` of every item the block was read
+   * from, sorted. For tables, the union of the cells'. Empty for `figure`
+   * and for a `rule` drawn as a stroke.
+   */
+  textItemIndices: Array<number>
 }
 export interface JsParseResult {
   /** Total source-document pages before target/max-page filtering. */

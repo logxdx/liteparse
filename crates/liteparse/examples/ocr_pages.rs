@@ -63,6 +63,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let options = OcrOptions {
         language: std::env::var("OCR_LANG").unwrap_or_else(|_| "eng".into()),
         dpi: 200.0,
+        request_fields: Default::default(),
     };
 
     let mut total = 0.0;

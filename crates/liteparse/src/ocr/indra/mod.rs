@@ -395,6 +395,8 @@ fn to_result(tb: TextBox, frame: &Frame) -> OcrResult {
             bbox: tb.bbox,
             confidence: tb.conf.clamp(0.0, 1.0),
             polygon: None,
+            words: Vec::new(),
+            rotation: None,
         };
     }
     let (w, h) = (frame.orig_w as f32, frame.orig_h as f32);
@@ -421,6 +423,9 @@ fn to_result(tb: TextBox, frame: &Frame) -> OcrResult {
         bbox,
         confidence: tb.conf.clamp(0.0, 1.0),
         polygon: (!frame.vertical()).then_some(poly),
+        // No measured angle: merging infers it from the polygon's point order.
+        words: Vec::new(),
+        rotation: None,
     }
 }
 
