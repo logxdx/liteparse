@@ -767,6 +767,7 @@ impl liteparse::ocr::OcrEngine for ProbeEngine {
                 polygon: None,
                 rotation: None,
                 words: Vec::new(),
+                faint: false,
             }])
         })
     }
@@ -841,7 +842,7 @@ async fn test_ocr_worker_is_refilled_before_slowest_request_finishes() {
     let parser = LiteParse::new(LiteParseConfig {
         ocr_enabled: true,
         num_workers: 2,
-        dpi: 72.0,
+        dpi: Some(72.0),
         quiet: true,
         ..Default::default()
     })
@@ -903,7 +904,7 @@ async fn test_ocr_rounds_cover_every_page_once() {
         let parser = LiteParse::new(LiteParseConfig {
             ocr_enabled: true,
             num_workers,
-            dpi: 150.0,
+            dpi: Some(150.0),
             quiet: true,
             ..Default::default()
         })
@@ -983,7 +984,7 @@ async fn test_ocr_rounds_fill_across_sparse_pages() {
     let parser = LiteParse::new(LiteParseConfig {
         ocr_enabled: true,
         num_workers: workers,
-        dpi: 72.0, // Small rasters: this test is about scheduling, not pixels.
+        dpi: Some(72.0), // Small rasters: this test is about scheduling, not pixels.
         quiet: true,
         ..Default::default()
     })
@@ -1506,6 +1507,7 @@ impl liteparse::ocr::OcrEngine for FailingWidthsEngine {
                 polygon: None,
                 rotation: None,
                 words: Vec::new(),
+                faint: false,
             }])
         })
     }
@@ -1518,7 +1520,7 @@ async fn parse_with_failing_widths(
     LiteParse::new(LiteParseConfig {
         ocr_enabled: true,
         num_workers: 2,
-        dpi: 72.0,
+        dpi: Some(72.0),
         quiet: true,
         ocr_failure_fatal: fatal,
         ..Default::default()

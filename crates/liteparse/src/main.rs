@@ -1,5 +1,5 @@
 use clap::{Args, Parser, Subcommand};
-use liteparse::config::{LiteParseConfig, OutputFormat};
+use liteparse::config::{LiteParseConfig, OcrBackend, OutputFormat};
 use liteparse::conversion;
 use liteparse::extract;
 use liteparse::ocr_merge::LayoutComplexityReason;
@@ -19,6 +19,29 @@ struct Cli {
     command: Commands,
 }
 
+#[cfg(feature = "ocria-nano")]
+#[derive(Subcommand, Debug)]
+enum ModelsCommand {
+    /// Download a model package, e.g. `liteparse models pull ocria-nano@latest`
+    Pull {
+        /// Package name, optionally @version
+        spec: String,
+        /// Install from a local directory holding the package files instead of downloading
+        #[arg(long)]
+        from: Option<std::path::PathBuf>,
+        /// Suppress progress output
+        #[arg(short, long)]
+        quiet: bool,
+    },
+    /// Show installed model packages
+    List,
+    /// Remove an installed model package
+    Rm {
+        /// Package name
+        name: String,
+    },
+}
+
 #[derive(Subcommand, Debug)]
 enum Commands {
     /// Parse a document file (PDF, DOCX, XLSX, PPTX, images, etc.)
@@ -32,9 +55,27 @@ enum Commands {
     /// Extract raw text items from a PDF file (no grid projection) [dev tool]
     #[command(hide = true)]
     Extract(ExtractCommand),
+    /// Download, list or remove optional model packages (ocria-nano)
+    #[cfg(feature = "ocria-nano")]
+    #[command(subcommand)]
+    Models(ModelsCommand),
+    /// Serve ocria-nano over HTTP for `--ocr-server-url` (one engine shared by many parsers)
+    #[cfg(feature = "ocr-serve")]
+    OcrServe(OcrServeCommand),
     /// Extract embedded image bounding boxes from a page [dev tool]
     #[command(hide = true)]
     ImageBounds(ExtractCommand),
+}
+
+#[cfg(feature = "ocr-serve")]
+#[derive(Args, Debug)]
+struct OcrServeCommand {
+    /// Address to listen on
+    #[arg(long, default_value = "127.0.0.1:8828")]
+    bind: std::net::SocketAddr,
+    /// Pages OCR'd at once (default: CPU cores)
+    #[arg(long)]
+    max_concurrent: Option<usize>,
 }
 
 #[derive(Args, Debug)]
@@ -58,7 +99,7 @@ struct ParseCommand {
     #[arg(long, default_value = "eng")]
     ocr_language: String,
 
-    /// HTTP OCR server URL (uses Tesseract if not provided)
+    /// HTTP OCR server URL (instead of the built-in --ocr-backend)
     #[arg(long, default_value = None)]
     ocr_server_url: Option<String>,
 
@@ -71,11 +112,12 @@ struct ParseCommand {
     #[arg(long)]
     tessdata_path: Option<String>,
 
-    /// OCR engine: "indra" (in-process Indra OCR; the default in builds with
-    /// the `indra-ocr` feature) or "tesseract" (the default otherwise).
-    /// Ignored with --ocr-server-url.
-    #[arg(long, default_value = DEFAULT_OCR_ENGINE)]
-    ocr_engine: String,
+    /// OCR engine when no --ocr-server-url is given: indra, tesseract or ocria-nano [default:
+    /// indra in builds with the `indra-ocr` feature; otherwise ocria-nano once pulled with
+    /// `liteparse models pull ocria-nano`, else tesseract]. Once that package is pulled,
+    /// LayoutNet (tables, headings, page headers/footers) runs with indra and ocria-nano.
+    #[arg(long, alias = "ocr-engine", value_parser = parse_ocr_backend)]
+    ocr_backend: Option<OcrBackend>,
 
     /// Indra OCR model folder (default: INDRA_OCR_MODEL_DIR, then the
     /// auto-download cache when built with `indra-ocr-auto-download`)
@@ -94,9 +136,9 @@ struct ParseCommand {
     #[arg(long)]
     continue_on_page_error: bool,
 
-    /// DPI for rendering (default: 150)
-    #[arg(long, default_value = "150")]
-    dpi: f32,
+    /// DPI for rendering [default: 250 with the ocria-nano OCR backend, else 150]
+    #[arg(long)]
+    dpi: Option<f32>,
 
     /// Preserve very small text
     #[arg(long)]
@@ -139,12 +181,19 @@ struct ParseCommand {
     no_links: bool,
 
     /// Keep running headers/footers in markdown output. By default, lines
-    /// that repeat in the top/bottom page bands across pages (and obvious
-    /// page chrome like `Page N of M`) are stripped from markdown. Pass this
+    /// that repeat in the top/bottom page bands across pages, obvious page
+    /// chrome like `Page N of M`, and text the layout model labels as a page
+    /// header / footer are stripped from markdown. Pass this
     /// to retain them all — e.g. for extraction pipelines that prefer to
     /// deduplicate downstream rather than risk losing content.
     #[arg(long)]
     keep_headers_footers: bool,
+
+    /// Learned table-structure model (weights file). Born-digital pages get their tables from
+    /// the model wherever it finds one; elsewhere the heuristic detectors still run. Defaults to
+    /// the installed ocria-nano package's model.
+    #[arg(long)]
+    table_model: Option<String>,
 
     /// Keep text hidden by rectangular clips (e.g. overflow from a
     /// fixed-height table cell). By default words drawn entirely outside
@@ -235,7 +284,7 @@ struct BatchParseCommand {
     #[arg(long, default_value = "eng")]
     ocr_language: String,
 
-    /// HTTP OCR server URL (uses Tesseract if not provided)
+    /// HTTP OCR server URL (instead of the built-in --ocr-backend)
     #[arg(long, default_value = None)]
     ocr_server_url: Option<String>,
 
@@ -248,11 +297,12 @@ struct BatchParseCommand {
     #[arg(long)]
     tessdata_path: Option<String>,
 
-    /// OCR engine: "indra" (in-process Indra OCR; the default in builds with
-    /// the `indra-ocr` feature) or "tesseract" (the default otherwise).
-    /// Ignored with --ocr-server-url.
-    #[arg(long, default_value = DEFAULT_OCR_ENGINE)]
-    ocr_engine: String,
+    /// OCR engine when no --ocr-server-url is given: indra, tesseract or ocria-nano [default:
+    /// indra in builds with the `indra-ocr` feature; otherwise ocria-nano once pulled with
+    /// `liteparse models pull ocria-nano`, else tesseract]. Once that package is pulled,
+    /// LayoutNet (tables, headings, page headers/footers) runs with indra and ocria-nano.
+    #[arg(long, alias = "ocr-engine", value_parser = parse_ocr_backend)]
+    ocr_backend: Option<OcrBackend>,
 
     /// Indra OCR model folder (default: INDRA_OCR_MODEL_DIR, then the
     /// auto-download cache when built with `indra-ocr-auto-download`)
@@ -267,9 +317,9 @@ struct BatchParseCommand {
     #[arg(long)]
     continue_on_page_error: bool,
 
-    /// DPI for rendering
-    #[arg(long, default_value = "150")]
-    dpi: f32,
+    /// DPI for rendering [default: 250 with the ocria-nano OCR backend, else 150]
+    #[arg(long)]
+    dpi: Option<f32>,
 
     /// Recursively search input directory
     #[arg(long)]
@@ -304,6 +354,10 @@ struct BatchParseCommand {
     /// Include page-scoped vector shapes and merged horizontal/vertical lines.
     #[arg(long)]
     extract_vector_graphics: bool,
+
+    /// Learned table-structure model (weights file); see `parse --table-model`.
+    #[arg(long)]
+    table_model: Option<String>,
 
     /// Include document annotations as page-scoped structured JSON/API data.
     #[arg(long)]
@@ -366,66 +420,20 @@ struct IsComplexCommand {
     quiet: bool,
 }
 
-/// `--ocr-engine` default: Indra when this build has it, else Tesseract.
-const DEFAULT_OCR_ENGINE: &str = if cfg!(feature = "indra-ocr") {
-    "indra"
-} else {
-    "tesseract"
-};
-
-/// Attach the OCR engine named by `--ocr-engine` (Tesseract is LiteParse's
-/// default, so it needs nothing). An HTTP OCR server URL takes precedence, and
-/// with OCR off no engine is loaded.
-async fn with_engine(
-    lp: LiteParse,
-    engine: &str,
-    indra_model_dir: Option<&str>,
-) -> Result<LiteParse, Box<dyn std::error::Error>> {
-    match engine {
-        "tesseract" => Ok(lp),
-        "indra" if lp.config().ocr_server_url.is_some() || !lp.config().ocr_enabled => Ok(lp),
-        "indra" => Ok(lp.with_ocr_engine(indra_engine(indra_model_dir).await?)),
-        other => {
-            Err(format!("unknown --ocr-engine {other:?} (expected tesseract or indra)").into())
-        }
+/// `--indra-model-dir`: where the Indra backend reads its models (it loads on the first page
+/// that needs OCR, see `liteparse::ocr::indra::lazy`).
+fn set_indra_model_dir(dir: Option<&str>) -> Result<(), Box<dyn std::error::Error>> {
+    #[cfg(feature = "indra-ocr")]
+    if let Some(dir) = dir {
+        liteparse::ocr::indra::lazy::set_model_dir(dir.into());
     }
-}
-
-#[cfg(feature = "indra-ocr")]
-async fn indra_engine(
-    model_dir: Option<&str>,
-) -> Result<std::sync::Arc<dyn liteparse::ocr::OcrEngine>, Box<dyn std::error::Error>> {
-    use liteparse::ocr::indra::models::{MODEL_DIR_ENV, ModelFiles};
-    use liteparse::ocr::indra::{IndraOcrEngine, IndraOptions};
-
-    let dir = model_dir
-        .map(std::path::PathBuf::from)
-        .or_else(|| std::env::var_os(MODEL_DIR_ENV).map(std::path::PathBuf::from));
-    let files = match dir {
-        Some(dir) => ModelFiles::in_dir(&dir)?,
-        #[cfg(feature = "indra-ocr-auto-download")]
-        None => {
-            use liteparse::ocr::indra::download::{ModelSet, ensure_models};
-            ensure_models(ModelSet::Full, None).await?
-        }
-        #[cfg(not(feature = "indra-ocr-auto-download"))]
-        None => {
-            return Err(
-                format!("--ocr-engine indra needs --indra-model-dir or {MODEL_DIR_ENV}").into(),
-            );
-        }
-    };
-    let engine =
-        tokio::task::spawn_blocking(move || IndraOcrEngine::new(&files, IndraOptions::default()))
-            .await??;
-    Ok(std::sync::Arc::new(engine))
-}
-
-#[cfg(not(feature = "indra-ocr"))]
-async fn indra_engine(
-    _model_dir: Option<&str>,
-) -> Result<std::sync::Arc<dyn liteparse::ocr::OcrEngine>, Box<dyn std::error::Error>> {
-    Err("this liteparse was built without the `indra-ocr` feature".into())
+    #[cfg(not(feature = "indra-ocr"))]
+    if dir.is_some() {
+        return Err(
+            "--indra-model-dir: this liteparse was built without the `indra-ocr` feature".into(),
+        );
+    }
+    Ok(())
 }
 
 fn parse_output_format(s: &str) -> Result<OutputFormat, String> {
@@ -455,6 +463,10 @@ fn read_stdin_bytes() -> Result<Vec<u8>, std::io::Error> {
         ));
     }
     Ok(bytes)
+}
+
+fn parse_ocr_backend(s: &str) -> Result<OcrBackend, String> {
+    s.parse()
 }
 
 fn parse_header(s: &str) -> Result<(String, String), String> {
@@ -512,6 +524,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ocr_language: cmd.ocr_language,
                 ocr_enabled: !cmd.no_ocr,
                 tessdata_path: cmd.tessdata_path,
+                ocr_backend: cmd.ocr_backend,
                 max_pages: cmd.max_pages,
                 target_pages: cmd.target_pages,
                 continue_on_page_error: cmd.continue_on_page_error,
@@ -527,6 +540,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 image_output_dir: cmd.image_output_dir.clone(),
                 extract_links: !cmd.no_links,
                 keep_headers_footers: cmd.keep_headers_footers,
+                table_model: cmd.table_model.clone(),
                 keep_clipped_text: cmd.keep_clipped_text,
                 extract_annotations: cmd.extract_annotations,
                 extract_form_fields: cmd.extract_form_fields,
@@ -543,12 +557,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 config.num_workers = n;
             }
 
-            let lp = with_engine(
-                LiteParse::new(config),
-                &cmd.ocr_engine,
-                cmd.indra_model_dir.as_deref(),
-            )
-            .await?;
+            set_indra_model_dir(cmd.indra_model_dir.as_deref())?;
+            let lp = LiteParse::new(config);
             let result = if cmd.file == "-" {
                 lp.parse_input(PdfInput::Bytes(read_stdin_bytes()?)).await?
             } else {
@@ -588,7 +598,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             let config = LiteParseConfig {
                 target_pages: cmd.target_pages.clone(),
-                dpi: cmd.dpi,
+                dpi: Some(cmd.dpi),
                 password: cmd.password.clone(),
                 quiet: cmd.quiet,
                 ..Default::default()
@@ -624,6 +634,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ocr_language: cmd.ocr_language,
                 ocr_enabled: !cmd.no_ocr,
                 tessdata_path: cmd.tessdata_path,
+                ocr_backend: cmd.ocr_backend,
                 max_pages: cmd.max_pages,
                 target_pages: None,
                 continue_on_page_error: cmd.continue_on_page_error,
@@ -644,18 +655,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 extract_blocks: cmd.extract_blocks,
                 extract_xfa_packets: cmd.extract_xfa_packets,
                 extract_content_bounds: cmd.extract_content_bounds,
+                table_model: cmd.table_model,
                 ..Default::default()
             };
             if let Some(n) = cmd.num_workers {
                 config.num_workers = n;
             }
 
-            let lp = with_engine(
-                LiteParse::new(config),
-                &cmd.ocr_engine,
-                cmd.indra_model_dir.as_deref(),
-            )
-            .await?;
+            set_indra_model_dir(cmd.indra_model_dir.as_deref())?;
+            let lp = LiteParse::new(config);
             let out_ext = match format {
                 OutputFormat::Json => "json",
                 OutputFormat::Markdown => "md",
@@ -742,6 +750,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             extract::extract(&cmd.pdf_path, cmd.page_num)?;
         }
 
+        #[cfg(feature = "ocria-nano")]
+        #[cfg(feature = "ocr-serve")]
+        Commands::OcrServe(cmd) => {
+            let engine = liteparse::ocr::ocria::shared_engine()?;
+            let n = cmd
+                .max_concurrent
+                .unwrap_or_else(|| std::thread::available_parallelism().map_or(1, |n| n.get()));
+            liteparse::ocr::ocria::serve::serve(engine, cmd.bind, n).await?;
+        }
+        #[cfg(feature = "ocria-nano")]
+        Commands::Models(cmd) => match cmd {
+            ModelsCommand::Pull { spec, from, quiet } => {
+                liteparse::models::pull(&spec, &liteparse::models::PullOptions { from, quiet })
+                    .await?;
+            }
+            ModelsCommand::List => println!("{}", liteparse::models::list_report()),
+            ModelsCommand::Rm { name } => match liteparse::models::remove(&name)? {
+                Some(dir) => println!("Removed {}", dir.display()),
+                None => println!("{name} is not installed."),
+            },
+        },
         Commands::ImageBounds(cmd) => {
             render::image_bounds(&cmd.pdf_path, cmd.page_num)?;
         }

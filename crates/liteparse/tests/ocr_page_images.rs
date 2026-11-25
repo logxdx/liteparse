@@ -84,6 +84,7 @@ impl OcrEngine for PixelOcr {
                     polygon: None,
                     words: Vec::new(),
                     rotation: None,
+                    faint: false,
                 },
                 OcrResult {
                     text: "DROP".into(),
@@ -92,6 +93,7 @@ impl OcrEngine for PixelOcr {
                     polygon: None,
                     words: Vec::new(),
                     rotation: None,
+                    faint: false,
                 },
             ])
         })
@@ -102,7 +104,7 @@ fn config(images: HashMap<u32, String>) -> LiteParseConfig {
     LiteParseConfig {
         ocr_enabled: true,
         quiet: true,
-        dpi: 72.0,
+        dpi: Some(72.0),
         emit_word_boxes: true,
         ocr_page_images: images,
         ..Default::default()
@@ -126,7 +128,7 @@ async fn legacy_rgb_and_grayscale_engines_receive_selected_images_in_page_coordi
     });
     // Zero DPI makes any discarded PDF render fail. These engines implement
     // only the existing raw-pixel method, including its grayscale preference.
-    cfg.dpi = 0.0;
+    cfg.dpi = Some(0.0);
     for grayscale in [false, true] {
         let result = LiteParse::new(cfg.clone())
             .with_ocr_engine(Arc::new(PixelOcr { grayscale }))

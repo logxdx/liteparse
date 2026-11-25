@@ -22,8 +22,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let meta = Meta::parse(&std::fs::read(&files.meta)?)?;
     println!("meta: {meta:?}");
 
-    let mut det = Session::builder()?.commit_from_file(&files.det)?;
-    let mut rec = Session::builder()?.commit_from_file(&files.rec)?;
+    let env = liteparse::ocr::indra::environment()?;
+    let mut det = Session::builder(env)?.commit_from_file(&files.det)?;
+    let mut rec = Session::builder(env)?.commit_from_file(&files.rec)?;
     describe("det", &det);
     describe("rec", &rec);
 

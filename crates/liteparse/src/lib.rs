@@ -55,7 +55,11 @@ pub mod font_db_resolver;
 #[doc(hidden)]
 pub mod glyph_names;
 #[doc(hidden)]
+pub mod image_pdf;
+#[doc(hidden)]
 pub mod markdown_layout;
+#[cfg(all(feature = "ocria-nano", not(target_arch = "wasm32")))]
+pub mod models;
 #[doc(hidden)]
 pub mod ocr;
 
@@ -67,3 +71,6 @@ pub mod output;
 pub mod projection;
 #[doc(hidden)]
 pub mod render;
+mod resegment;
+#[doc(hidden)]
+pub mod table_model;

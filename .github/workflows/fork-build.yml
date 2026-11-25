@@ -25,18 +25,13 @@ jobs:
   test:
     name: Test (indra-ocr)
     runs-on: ubuntu-24.04
-    env:
-      # ONNX Runtime's static library needs GCC 14's libstdc++.
-      CC: gcc-14
-      CXX: g++-14
-      CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER: gcc-14
     steps:
       - uses: actions/checkout@v4
 
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libtesseract-dev libleptonica-dev gcc-14 g++-14
+          sudo apt-get install -y libtesseract-dev libleptonica-dev
 
       - uses: dtolnay/rust-toolchain@1.95.0
 
@@ -55,22 +50,29 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # indra: Indra as the default OCR backend, where the ocria-nano package publishes an
+        # ONNX Runtime (not Intel macOS or musl)
         include:
           - os: macos-latest
             target: aarch64-apple-darwin
+            indra: true
           - os: macos-26-intel
             target: x86_64-apple-darwin
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
+            indra: true
           - os: ubuntu-24.04-arm
             target: aarch64-unknown-linux-gnu
+            indra: true
           - os: ubuntu-latest
             target: x86_64-unknown-linux-musl
             musl: true
           - os: windows-latest
             target: x86_64-pc-windows-msvc
+            indra: true
           - os: windows-11-arm
             target: aarch64-pc-windows-msvc
+            indra: true
     runs-on: ${{ matrix.os }}
     name: Wheel ${{ matrix.target }}
     steps:
@@ -120,7 +122,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
-          args: --release --out dist --find-interpreter
+          args: --release --out dist --find-interpreter ${{ matrix.indra && '--features indra-ocr' || '' }}
           manylinux: 2_28
           working-directory: packages/python
           before-script-linux: |
@@ -224,8 +226,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # ONNX Runtime's prebuilt static library needs glibc 2.38 and GCC 14's
-          # libstdc++, so the Indra builds target current distros...
+          # ONNX Runtime is loaded at run time (`liteparse models pull ocria-nano`
+          # installs it), so the Indra builds link nothing extra and the compat
+          # builds keep their glibc 2.31 baseline.
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-24.04
             name: linux-x64
@@ -234,22 +237,21 @@ jobs:
             os: ubuntu-24.04-arm
             name: linux-arm64
             features: indra-ocr-auto-download
-          # ...and the compat builds keep the glibc 2.31 baseline, Tesseract only.
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-22.04
             name: linux-x64-compat
-            features: ""
+            features: indra-ocr-auto-download
             glibc-container: true
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-22.04-arm
             name: linux-arm64-compat
-            features: ""
+            features: indra-ocr-auto-download
             glibc-container: true
           - target: aarch64-apple-darwin
             os: macos-latest
             name: macos-arm64
             features: indra-ocr-auto-download
-          # ONNX Runtime has no prebuilt binaries for Intel macOS, so this
+          # The ocria-nano package has no ONNX Runtime for Intel macOS, so this
           # build has Tesseract only.
           - target: x86_64-apple-darwin
             os: macos-26-intel
@@ -372,6 +374,7 @@ jobs:
     name: Test CLI ${{ matrix.name }}
     env:
       INDRA_OCR_HOME: ${{ github.workspace }}/indra-models
+      LITEPARSE_MODEL_DIR: ${{ github.workspace }}/liteparse-models
     steps:
       - uses: actions/checkout@v4
         with:
@@ -387,6 +390,11 @@ jobs:
           path: indra-models
           key: indra-models-v1.1.0
 
+      - uses: actions/cache@v4
+        with:
+          path: liteparse-models
+          key: liteparse-models-ocria-nano-1.0.0-${{ matrix.name }}
+
       - name: Unpack
         shell: bash
         run: |
@@ -401,6 +409,11 @@ jobs:
           bin=archive/liteparse-${{ matrix.name }}/liteparse
           [ -f "$bin.exe" ] && bin="$bin.exe"
           "$bin" --version
+          # LayoutNet + ONNX Runtime for Indra (no runtime is published for Intel macOS)
+          if [ "${{ matrix.name }}" != macos-x64 ]; then
+            "$bin" models pull ocria-nano --quiet
+            "$bin" models list
+          fi
           "$bin" parse demo/docs/apple-10k-2024.pdf --no-ocr --max-pages 1 -q | head -5
           "$bin" parse demo/docs/long_tiny_text.pdf --max-pages 1 -q -o ocr-out.txt
           size=$(wc -c < ocr-out.txt)

@@ -417,7 +417,8 @@ pub struct PageComplexityStats {
     /// backgrounds are excluded from `image_coverage`/`largest_image_coverage`
     /// (they're not inline figures), so this flag is the only signal that
     /// distinguishes a scan from a genuinely blank page — both otherwise report
-    /// no text and no counted images.
+    /// no text and no counted images. Includes rasters drawn inside form
+    /// XObjects, which only relabel a textless page as `Scanned`.
     pub full_page_image: bool,
     /// Filled vector-outline area not covered by native text, in pt². `None`
     /// when a cheaper predicate already flagged the page for OCR, so this
@@ -531,7 +532,16 @@ pub(crate) fn calculate_page_complexity(
     let is_full_page = |b: &ImageBounds| {
         b.width > pw * MAX_IMAGE_PAGE_COVERAGE && b.height > ph * MAX_IMAGE_PAGE_COVERAGE
     };
-    let full_page_image = all_images.iter().any(is_full_page);
+    // Only a top-level scan gates OCR (`SparseText`, `InvisibleTextLayer`).
+    // Scans can also sit inside a form XObject; those are reported and
+    // relabel a textless page as `Scanned`, but don't send more pages to OCR,
+    // since born-digital pages often wrap a full-page background in a form.
+    let top_level_scan = all_images.iter().any(is_full_page);
+    let full_page_image = top_level_scan
+        || page_obj
+            .form_image_bounds(MIN_IMAGE_SIZE_PT)
+            .iter()
+            .any(is_full_page);
     let image_bounds: Vec<&ImageBounds> = all_images.iter().filter(|b| !is_full_page(b)).collect();
     let has_images = !image_bounds.is_empty();
 
@@ -586,7 +596,7 @@ pub(crate) fn calculate_page_complexity(
         if page_obj.has_annotation_text() {
             reasons.push(ComplexityReason::AnnotationText);
         }
-    } else if sparse_text && (full_page_image || text_length < SPARSE_TEXT_TRUSTED_LEN) {
+    } else if sparse_text && (top_level_scan || text_length < SPARSE_TEXT_TRUSTED_LEN) {
         // There is real text, but it's too thin to be the whole page. A page that already
         // carries plenty of native text and no raster at all has nothing else for OCR to read
         // but text drawn as vector outlines, which the vector check below measures; OCR'ing it
@@ -599,7 +609,7 @@ pub(crate) fn calculate_page_complexity(
     if is_garbled {
         reasons.push(ComplexityReason::Garbled);
     }
-    if full_page_image
+    if top_level_scan
         && text_length >= MIN_NATIVE_TEXT_LEN
         && (invisible_text_share(page_obj) >= INVISIBLE_LAYER_MIN_SHARE
             || hidden_under_scan_share(page_obj) >= INVISIBLE_LAYER_MIN_SHARE)
@@ -1807,6 +1817,7 @@ fn merge_ocr_outcomes(
                 font_size: Some(font_size_hint),
                 confidence: Some((r.confidence * 1000.0).round() / 1000.0),
                 words,
+                ocr_faint: r.faint,
                 ..Default::default()
             });
             for i in inside {
@@ -3657,6 +3668,7 @@ mod tests {
                     polygon: None,
                     words: Vec::new(),
                     rotation: None,
+                    faint: false,
                 }]
             },
             error: error.map(str::to_owned),
@@ -4074,6 +4086,7 @@ mod tests {
                     polygon: None,
                     rotation: None,
                     words: Vec::new(),
+                    faint: false,
                 },
                 OcrResult {
                     text: "world".into(),
@@ -4082,6 +4095,7 @@ mod tests {
                     polygon: None,
                     rotation: None,
                     words: Vec::new(),
+                    faint: false,
                 },
             ],
             error: None,
@@ -4157,6 +4171,7 @@ mod tests {
             polygon: None,
             words,
             rotation: None,
+            faint: false,
         };
         let measured = vec![
             ocr_word("Invoice", [11.0, 21.0, 60.0, 29.0]),
@@ -4213,6 +4228,7 @@ mod tests {
                 ocr_word("total", [10.0, 35.0, 20.0, 55.0]),
                 ocr_word("amount", [10.0, 5.0, 20.0, 30.0]),
             ],
+            faint: false,
         };
         let page = merge_ocr_page(vec![line], 72.0);
         let item = &page.text_items[0];
@@ -4248,6 +4264,7 @@ mod tests {
                 polygon: Some(polygon),
                 words,
                 rotation,
+                faint: false,
             };
             merge_ocr_page(vec![line], 144.0).text_items.remove(0)
         };
@@ -4301,6 +4318,7 @@ mod tests {
             polygon: None,
             rotation: None,
             words: Vec::new(),
+            faint: false,
         };
         let results = vec![
             word("Logement", 10.0, 10.0),

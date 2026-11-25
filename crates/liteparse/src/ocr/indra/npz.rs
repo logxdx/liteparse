@@ -104,7 +104,11 @@ pub fn read(bytes: &[u8]) -> Result<HashMap<String, Array>, LiteParseError> {
     let mut out = HashMap::new();
     for i in 0..zip.len() {
         let mut f = zip.by_index(i).map_err(|e| err(e.to_string()))?;
-        let name = f.name().trim_end_matches(".npy").to_owned();
+        let name = f
+            .name()
+            .map_err(|e| err(e.to_string()))?
+            .trim_end_matches(".npy")
+            .to_owned();
         let mut buf = Vec::with_capacity(f.size() as usize);
         f.read_to_end(&mut buf).map_err(|e| err(e.to_string()))?;
         out.insert(name, parse_npy(buf)?);

@@ -34,6 +34,7 @@ pub mod detect;
 #[cfg(feature = "indra-ocr-auto-download")]
 pub mod download;
 pub mod imgproc;
+pub mod lazy;
 pub mod lm;
 pub mod models;
 mod npz;
@@ -121,9 +122,32 @@ pub struct IndraOcrEngine {
     word_boxes: bool,
 }
 
+/// The process's ONNX Runtime environment, shared with ocria-nano: loaded from `ORT_DYLIB_PATH`,
+/// else from the runtime that `liteparse models pull ocria-nano` installs.
+pub fn environment() -> Result<&'static ort::environment::Environment, LiteParseError> {
+    if let Some(env) = crate::ocr::ocria::environment() {
+        return Ok(env);
+    }
+    let dir = crate::ocr::ocria::default_model_dir().unwrap_or_default();
+    if crate::ocr::ocria::runtime_for_package(&dir)
+        && let Some(env) = crate::ocr::ocria::environment()
+    {
+        return Ok(env);
+    }
+    Err(LiteParseError::Ocr(
+        "indra: ONNX Runtime is not installed: run `liteparse models pull ocria-nano` (it also \
+         installs LayoutNet) or point ORT_DYLIB_PATH at an onnxruntime library"
+            .into(),
+    ))
+}
+
 fn session(path: &Path, options: &IndraOptions) -> Result<Session, LiteParseError> {
     let cpu = ep::CPU::default().with_arena_allocator(false).build();
-    let mut builder = Session::builder()?;
+    // CPU unless asked otherwise: ONNX Runtime 1.31 otherwise picks a device-based EP (CoreML on
+    // macOS), with different numerics and a model compile per session
+    let mut builder = Session::builder(environment()?)?
+        .with_auto_device(ort::session::builder::AutoDevicePolicy::PreferCPU)
+        .map_err(|e| LiteParseError::Ocr(format!("indra: {e}")))?;
     builder = match options.execution {
         Execution::Cpu => builder.with_execution_providers([cpu])?,
         #[cfg(feature = "indra-ocr-cuda")]
@@ -141,8 +165,12 @@ fn session(path: &Path, options: &IndraOptions) -> Result<Session, LiteParseErro
             ));
         }
     };
+    // sessions share the environment's thread pool unless a thread count is asked for
     if let Some(n) = options.intra_threads {
-        builder = builder.with_intra_threads(n)?;
+        builder = builder
+            .with_independent_thread_pool()
+            .map_err(|e| LiteParseError::Ocr(format!("indra: {e}")))?
+            .with_intra_threads(n)?;
     }
     Ok(builder.commit_from_file(path)?)
 }
@@ -397,6 +425,7 @@ fn to_result(tb: TextBox, frame: &Frame) -> OcrResult {
             polygon: None,
             words: Vec::new(),
             rotation: None,
+            faint: false,
         };
     }
     let (w, h) = (frame.orig_w as f32, frame.orig_h as f32);
@@ -426,6 +455,7 @@ fn to_result(tb: TextBox, frame: &Frame) -> OcrResult {
         // No measured angle: merging infers it from the polygon's point order.
         words: Vec::new(),
         rotation: None,
+        faint: false,
     }
 }
 

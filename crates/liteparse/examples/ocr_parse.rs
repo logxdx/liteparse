@@ -63,9 +63,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ..LiteParseConfig::default()
     };
     if let Ok(dpi) = std::env::var("OCR_DPI") {
-        config.dpi = dpi.parse()?;
+        config.dpi = Some(dpi.parse()?);
     }
-    let dpi = config.dpi;
+    let dpi = config.effective_dpi();
     let parser = LiteParse::new(config).with_ocr_engine(engine(&name)?);
     eprintln!(
         "{name}: engine loaded, RSS {:.0} MiB",

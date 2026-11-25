@@ -6,8 +6,11 @@ use serde::{Deserialize, Serialize};
 pub mod http_simple;
 #[cfg(all(feature = "indra-ocr", not(target_arch = "wasm32")))]
 pub mod indra;
-#[cfg(all(feature = "oar-ocr", not(target_arch = "wasm32")))]
-pub mod oar;
+#[cfg(any(
+    all(feature = "ocria-nano", not(target_arch = "wasm32")),
+    all(feature = "ocria-nano-wasm", target_arch = "wasm32")
+))]
+pub mod ocria;
 #[cfg(all(feature = "tesseract", not(target_arch = "wasm32")))]
 pub mod tesseract;
 
@@ -35,6 +38,10 @@ pub struct OcrResult {
     /// merging then infers it from the polygon's point order.
     #[serde(default)]
     pub rotation: Option<f32>,
+    /// A short token read from a region the detector scored under its threshold (ocria-nano's
+    /// faint pass). The table model reads it as an opaque token: see `table_model::ocr_units`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub faint: bool,
 }
 
 /// One word an OCR engine measured inside a line-level result.
@@ -169,6 +176,7 @@ mod tests {
                     polygon: None,
                     rotation: None,
                     words: Vec::new(),
+                    faint: false,
                 }])
             })
         }
