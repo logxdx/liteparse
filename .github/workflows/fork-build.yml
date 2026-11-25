@@ -23,6 +23,8 @@ env:
 
 jobs:
   test:
+    # Release builds use ocria-nano (default features); this keeps the opt-in
+    # `indra-ocr` feature building and tested.
     name: Test (indra-ocr)
     runs-on: ubuntu-24.04
     steps:
@@ -50,29 +52,22 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # indra: Indra as the default OCR backend, where the ocria-nano package publishes an
-        # ONNX Runtime (not Intel macOS or musl)
         include:
           - os: macos-latest
             target: aarch64-apple-darwin
-            indra: true
           - os: macos-26-intel
             target: x86_64-apple-darwin
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            indra: true
           - os: ubuntu-24.04-arm
             target: aarch64-unknown-linux-gnu
-            indra: true
           - os: ubuntu-latest
             target: x86_64-unknown-linux-musl
             musl: true
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            indra: true
           - os: windows-11-arm
             target: aarch64-pc-windows-msvc
-            indra: true
     runs-on: ${{ matrix.os }}
     name: Wheel ${{ matrix.target }}
     steps:
@@ -122,7 +117,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
-          args: --release --out dist --find-interpreter ${{ matrix.indra && '--features indra-ocr' || '' }}
+          args: --release --out dist --find-interpreter
           manylinux: 2_28
           working-directory: packages/python
           before-script-linux: |
@@ -226,45 +221,38 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # ONNX Runtime is loaded at run time (`liteparse models pull ocria-nano`
-          # installs it), so the Indra builds link nothing extra and the compat
-          # builds keep their glibc 2.31 baseline.
+          # Default features: Tesseract, plus ocria-nano (OCR + LayoutNet) once
+          # `liteparse models pull ocria-nano` installs its models and ONNX
+          # Runtime, which is loaded at run time (nothing extra is linked, so
+          # the compat builds keep their glibc 2.31 baseline).
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-24.04
             name: linux-x64
-            features: indra-ocr-auto-download
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-24.04-arm
             name: linux-arm64
-            features: indra-ocr-auto-download
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-22.04
             name: linux-x64-compat
-            features: indra-ocr-auto-download
             glibc-container: true
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-22.04-arm
             name: linux-arm64-compat
-            features: indra-ocr-auto-download
             glibc-container: true
           - target: aarch64-apple-darwin
             os: macos-latest
             name: macos-arm64
-            features: indra-ocr-auto-download
           # The ocria-nano package has no ONNX Runtime for Intel macOS, so this
-          # build has Tesseract only.
+          # build's OCR is Tesseract.
           - target: x86_64-apple-darwin
             os: macos-26-intel
             name: macos-x64
-            features: ""
           - target: x86_64-pc-windows-msvc
             os: windows-latest
             name: windows-x64
-            features: indra-ocr-auto-download
           - target: aarch64-pc-windows-msvc
             os: windows-11-arm
             name: windows-arm64
-            features: indra-ocr-auto-download
     runs-on: ${{ matrix.os }}
     name: CLI ${{ matrix.name }}
     steps:
@@ -373,7 +361,6 @@ jobs:
     runs-on: ${{ matrix.os }}
     name: Test CLI ${{ matrix.name }}
     env:
-      INDRA_OCR_HOME: ${{ github.workspace }}/indra-models
       LITEPARSE_MODEL_DIR: ${{ github.workspace }}/liteparse-models
     steps:
       - uses: actions/checkout@v4
@@ -384,11 +371,6 @@ jobs:
         with:
           name: cli-${{ matrix.name }}
           path: archive
-
-      - uses: actions/cache@v4
-        with:
-          path: indra-models
-          key: indra-models-v1.1.0
 
       - uses: actions/cache@v4
         with:
@@ -409,7 +391,8 @@ jobs:
           bin=archive/liteparse-${{ matrix.name }}/liteparse
           [ -f "$bin.exe" ] && bin="$bin.exe"
           "$bin" --version
-          # LayoutNet + ONNX Runtime for Indra (no runtime is published for Intel macOS)
+          # ocria-nano: the OCR backend and LayoutNet from here on (no ONNX Runtime is
+          # published for Intel macOS, which stays on Tesseract)
           if [ "${{ matrix.name }}" != macos-x64 ]; then
             "$bin" models pull ocria-nano --quiet
             "$bin" models list

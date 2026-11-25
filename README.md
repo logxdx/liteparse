@@ -35,8 +35,8 @@ hard stuff so your models see clean, structured data and markdown.
 - **Fast Text Parsing**: Spatial text parsing using PDFium, ~2-5ms per page
 - **Flexible OCR System**:
   - **Built-in**: Tesseract (zero setup, bundled with the library)
-  - **Indra (this fork's default)**: [Indra OCR](https://github.com/datalab-to/indra) in-process on CPU, in builds with the `indra-ocr` feature (the fork's release binaries and wheels), paired with LayoutNet for tables and layout ([details](#optional-ocria-nano-liteparses-own-models))
-  - **ocria-nano (opt-in)**: LiteParse's own CPU models (8.1M parameters): line detector, script router, four recognizers and LayoutNet, a learned table and layout model. `liteparse models pull ocria-nano` once; in Indra builds it supplies LayoutNet and ONNX Runtime, elsewhere it is also the OCR backend ([details](#optional-ocria-nano-liteparses-own-models))
+  - **ocria-nano (opt-in)**: LiteParse's own CPU models (8.1M parameters): line detector, script router, four recognizers and LayoutNet, a learned table and layout model. `liteparse models pull ocria-nano` once, then it is the OCR backend ([details](#optional-ocria-nano-liteparses-own-models))
+  - **Indra (build feature)**: [Indra OCR](https://github.com/datalab-to/indra) in-process on CPU with the `indra-ocr` feature, paired with LayoutNet ([details](#optional-ocria-nano-liteparses-own-models))
   - **HTTP Servers**: Plug in any OCR server (EasyOCR, PaddleOCR, custom)
   - **Standard API**: Simple, well-defined OCR API specification
 - **Complexity Detection**: Cheaply check whether a document needs OCR or heavier parsing — route, reject, or estimate cost before a full parse
@@ -659,14 +659,14 @@ liteparse models list                # installed packages
 liteparse models rm ocria-nano       # remove
 ```
 
-- This fork: once pulled, **LayoutNet runs with the Indra and ocria-nano backends** (also with
-  `--no-ocr`) and reads tables, headings and page headers/footers; `--ocr-backend tesseract` keeps
-  the heuristic layout unless `--table-model` is given. In builds with `indra-ocr` (the fork's release CLI and
-  wheels) **Indra stays the OCR backend** and runs on the ONNX Runtime the package installs; use
-  `--ocr-backend ocria-nano` for ocria-nano's OCR. Measured on ParseBench-2 (250 dpi, headers and
-  footers kept): Indra + LayoutNet 60.2, ocria-nano 59.3, Indra without LayoutNet 52.0.
-- Without `indra-ocr`, ocria-nano is the default backend once pulled. Pages render at 250 dpi with
-  ocria-nano, 150 with Indra and Tesseract; `--dpi` overrides it.
+- Once pulled, ocria-nano is the default OCR backend (the fork's release CLI and wheels) and
+  **LayoutNet** reads tables, headings and page headers/footers, also with `--no-ocr`;
+  `--ocr-backend tesseract` keeps the heuristic layout unless `--table-model` is given. Pages render
+  at 250 dpi with ocria-nano, 150 with Tesseract and Indra; `--dpi` overrides it.
+- Indra is an opt-in build feature: `cargo build -p liteparse --features indra-ocr-auto-download`
+  makes it the default OCR backend, still with LayoutNet and on the ONNX Runtime this package
+  installs. Measured on ParseBench-2 (250 dpi, headers and footers kept): ocria-nano 59.3,
+  Indra + LayoutNet 60.2 (text 71.3 vs 68.6), Indra without LayoutNet 52.0.
 - Offline / air-gapped machines: `liteparse models pull ocria-nano --from <dir>` installs from a directory
   holding the package files. `LITEPARSE_MODEL_DIR` moves the model directory (default
   `~/.cache/liteparse/models`), and `ORT_DYLIB_PATH` points at an existing ONNX Runtime library.
